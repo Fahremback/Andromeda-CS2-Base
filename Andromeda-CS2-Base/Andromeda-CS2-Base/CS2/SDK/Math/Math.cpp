@@ -100,15 +100,17 @@ namespace Math
     {
         QAngle vAngle;
 
-        Vector3 delta( ( src.m_x - dst.m_x ) , ( src.m_y - dst.m_y ) , ( src.m_z - dst.m_z ) );
+        Vector3 delta( ( dst.m_x - src.m_x ) , ( dst.m_y - src.m_y ) , ( dst.m_z - src.m_z ) );
         double hyp = sqrt( delta.m_x * delta.m_x + delta.m_y * delta.m_y );
 
         vAngle.m_x = float( atanf( float( delta.m_z / hyp ) ) * 57.295779513082f );
         vAngle.m_y = float( atanf( float( delta.m_y / delta.m_x ) ) * 57.295779513082f );
         vAngle.m_z = 0.0f;
 
-        if ( delta.m_x >= 0.0 )
+        if ( delta.m_x < 0.0f )
             vAngle.m_y += 180.0f;
+        else if ( delta.m_y < 0.0f )
+            vAngle.m_y -= 180.0f;
 
         return vAngle;
     }

@@ -33,6 +33,7 @@ private:
 	auto SetIndigoStyle() -> void;
 	auto SetVermillionStyle() -> void;
 	auto SetClassicSteamStyle() -> void;
+	auto SetModernRedesignStyle() -> void;
 
 	enum EAndromedaGuiStyle_t : uint32_t
 	{

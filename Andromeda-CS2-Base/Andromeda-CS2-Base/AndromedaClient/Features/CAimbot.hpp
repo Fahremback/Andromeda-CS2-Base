@@ -18,7 +18,7 @@ public:
         float fov = 10.0f;
         int boneTarget = 6; 
         int minDamage = 1;
-        bool visibilityCheck = true; // Restaurado
+        bool visibilityCheck = true;
         bool recoilControl = true;
         float recoilControlY = 2.0f;
         float recoilControlX = 2.0f;
@@ -53,6 +53,7 @@ public:
     struct ThreadLocalStaging {
         static thread_local SoAEntityCache localCache;
         static thread_local FireCommand pendingCommand;
+        static thread_local Vector3 lastAppliedPunch;
     };
 
 private:
@@ -61,7 +62,7 @@ private:
 
 public:
     static void Initialize();
-    static void UpdateEntityCache();  // ← NOVO: Popular o cache antes de executar
+    static void UpdateEntityCache();
     static void Execute(Vector3& viewAngles, bool& shouldShoot);
     static AimbotConfig& GetConfig() { return config; }
     static int GetOptimalThreadCount() { 

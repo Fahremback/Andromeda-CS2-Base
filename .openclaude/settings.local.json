@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master\"/*.sln \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master\"/**/*.sln)",
+      "Bash(ls \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master\"/*.vcxproj \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master\"/**/*.vcxproj)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/Andromeda-CS2-Base/Andromeda-CS2-Base.vcxproj\" -t:Cl -p:Configuration=Release -p:Platform=x64 -m 2>&1)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/Andromeda-CS2-Base.sln\" -t:Cl -p:Configuration=Release -p:Platform=x64)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/Andromeda-CS2-Base.sln\" -p:Configuration=Release -p:Platform=x64)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" \"C:/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/Andromeda-CS2-Base.sln\" -t:Rebuild -p:Configuration=Release -p:Platform=x64)",
+      "Bash(xargs grep:*)",
+      "Bash(while read:*)",
+      "Bash(do grep:*)",
+      "Bash(done)",
+      "Bash(find C:UsersPauloDesktopCS2Andromeda-CS2-Base-masterAndromeda-CS2-BaseAndromeda-CS2-Base -name *.hpp -exec grep -l 'class C_CSPlayerPawn' {})",
+      "Bash(2)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/**)"
+    ]
+  }
+}
