@@ -12,7 +12,6 @@
 #include <cmath>
 #include <algorithm>
 #include <mutex>
-#include <future>
 #include <thread>
 #include <vector>
 #include <limits>
@@ -20,6 +19,7 @@
 #include <type_traits>
 #include <malloc.h>
 #include <chrono>
+#include <cstdlib>
 
 thread_local CPhysicsAligner::SoAEntityCache CPhysicsAligner::ThreadLocalStaging::localCache;
 thread_local CPhysicsAligner::FireCommand CPhysicsAligner::ThreadLocalStaging::pendingCommand;
@@ -74,6 +74,184 @@ void CPhysicsAligner::MPSCRingBuffer::Reset() {
 
 void CPhysicsAligner::Initialize() {
     config = BallSimulationParams{};
+    InitializeJobSystem();
+}
+
+void CPhysicsAligner::InitializeJobSystem() {
+    if (!workerThreads.empty())
+        return;
+
+    const uint32_t desiredWorkers = (std::min<uint32_t>)((std::max)(1, GetOptimalThreadCount()), kMaxWorkers);
+    workerCount.store(desiredWorkers, std::memory_order_release);
+    workerStop.store(false, std::memory_order_release);
+    workerGeneration.store(0, std::memory_order_release);
+    workerCompleted.store(0, std::memory_order_release);
+    workerThreads.reserve(desiredWorkers);
+
+    for (uint32_t i = 0; i < desiredWorkers; ++i)
+        workerThreads.emplace_back(&CPhysicsAligner::JobWorkerMain, i);
+
+    std::atexit(&CPhysicsAligner::ShutdownJobSystem);
+}
+
+void CPhysicsAligner::ShutdownJobSystem() {
+    if (workerThreads.empty())
+        return;
+
+    workerStop.store(true, std::memory_order_release);
+    workerGeneration.fetch_add(1, std::memory_order_acq_rel);
+    for (auto& thread : workerThreads) {
+        if (thread.joinable())
+            thread.join();
+    }
+    workerThreads.clear();
+}
+
+void CPhysicsAligner::DispatchParallelJob(JobType type) {
+    const uint32_t totalWorkers = workerCount.load(std::memory_order_acquire);
+    if (totalWorkers <= 1) {
+        if (type == JobType::Reachability)
+            ProcessReachabilityWorker(0, 1, activeJob);
+        else if (type == JobType::SnapshotRollback)
+            ProcessSnapshotWorker(0, 1, activeJob);
+        return;
+    }
+
+    activeJob.type = type;
+    workerCompleted.store(0, std::memory_order_release);
+    workerGeneration.fetch_add(1, std::memory_order_acq_rel);
+    const uint32_t targetCompletions = totalWorkers;
+    while (workerCompleted.load(std::memory_order_acquire) < targetCompletions)
+        _mm_pause();
+}
+
+void CPhysicsAligner::JobWorkerMain(uint32_t workerIndex) {
+    uint32_t observedGeneration = workerGeneration.load(std::memory_order_acquire);
+    const uint32_t totalWorkers = workerCount.load(std::memory_order_acquire);
+    while (!workerStop.load(std::memory_order_acquire)) {
+        const uint32_t currentGeneration = workerGeneration.load(std::memory_order_acquire);
+        if (currentGeneration == observedGeneration) {
+            _mm_pause();
+            continue;
+        }
+        observedGeneration = currentGeneration;
+
+        const JobContext context = activeJob;
+        if (context.type == JobType::Reachability)
+            ProcessReachabilityWorker(workerIndex, totalWorkers, context);
+        else if (context.type == JobType::SnapshotRollback)
+            ProcessSnapshotWorker(workerIndex, totalWorkers, context);
+
+        workerCompleted.fetch_add(1, std::memory_order_release);
+    }
+}
+
+void CPhysicsAligner::ProcessReachabilityWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context) {
+    if (!context.cache || context.cache->entityCount == 0)
+        return;
+
+    const size_t jobs = context.cache->entityCount;
+    const size_t chunkSize = (jobs + totalWorkers - 1) / totalWorkers;
+    const size_t begin = workerIndex * chunkSize;
+    const size_t end = (std::min)(jobs, begin + chunkSize);
+    if (begin >= end)
+        return;
+
+    SoAEntityCache& cache = *context.cache;
+    for (size_t i = begin; i < end; ++i) {
+        if (!cache.isActive[i] || !cache.onScreen[i])
+            continue;
+
+        const Vector3 targetPos(cache.headX[i], cache.headY[i], cache.headZ[i]);
+        const Vector3 delta = targetPos - context.eyePos;
+        const Vector3 dir = NormalizeVectorFast(delta);
+        const float approxTravel = (delta.m_x * dir.m_x) + (delta.m_y * dir.m_y) + (delta.m_z * dir.m_z);
+        const bool reachable = (approxTravel > 0.0f) && (!config.occlusionTest || cache.isVisible[i]);
+        raycastResults.TryPush({ RaycastResult::Kind::Raycast, static_cast<uint16_t>(i), reachable });
+    }
+}
+
+void CPhysicsAligner::ProcessSnapshotWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context) {
+    if (!context.snapshots || context.snapshotCount == 0)
+        return;
+
+    const size_t chunkSize = (context.snapshotCount + totalWorkers - 1) / totalWorkers;
+    const size_t begin = workerIndex * chunkSize;
+    const size_t end = (std::min)(context.snapshotCount, begin + chunkSize);
+    if (begin >= end)
+        return;
+
+    const __m512 m0 = _mm512_set1_ps(g_ViewMatrix.m_data[0][0]); const __m512 m1 = _mm512_set1_ps(g_ViewMatrix.m_data[0][1]);
+    const __m512 m2 = _mm512_set1_ps(g_ViewMatrix.m_data[0][2]); const __m512 m3 = _mm512_set1_ps(g_ViewMatrix.m_data[0][3]);
+    const __m512 m4 = _mm512_set1_ps(g_ViewMatrix.m_data[1][0]); const __m512 m5 = _mm512_set1_ps(g_ViewMatrix.m_data[1][1]);
+    const __m512 m6 = _mm512_set1_ps(g_ViewMatrix.m_data[1][2]); const __m512 m7 = _mm512_set1_ps(g_ViewMatrix.m_data[1][3]);
+    const __m512 m12 = _mm512_set1_ps(g_ViewMatrix.m_data[3][0]); const __m512 m13 = _mm512_set1_ps(g_ViewMatrix.m_data[3][1]);
+    const __m512 m14 = _mm512_set1_ps(g_ViewMatrix.m_data[3][2]); const __m512 m15 = _mm512_set1_ps(g_ViewMatrix.m_data[3][3]);
+    const __m512 vCenterX = _mm512_set1_ps(context.centerX);
+    const __m512 vCenterY = _mm512_set1_ps(context.centerY);
+    const __m512 vSensorX = _mm512_set1_ps(context.eyePos.m_x);
+    const __m512 vSensorY = _mm512_set1_ps(context.eyePos.m_y);
+    const __m512 vSensorZ = _mm512_set1_ps(context.eyePos.m_z);
+
+    for (size_t snapIdx = begin; snapIdx < end; ++snapIdx) {
+        const SnapshotState& snapshot = context.snapshots[snapIdx];
+        if (snapshot.captureTimeUs == 0 || snapshot.entityCount == 0)
+            continue;
+
+        float localBestDistance = std::numeric_limits<float>::max();
+        uint16_t localBestEntity = 0;
+
+        for (size_t i = 0; i < snapshot.entityCount; i += 16) {
+            const size_t remaining = snapshot.entityCount - i;
+            const __mmask16 laneMask = static_cast<__mmask16>((remaining >= 16) ? 0xFFFFu : ((1u << remaining) - 1u));
+
+            __m512 x = _mm512_sub_ps(_mm512_loadu_ps(&snapshot.headX[i]), vSensorX);
+            __m512 y = _mm512_sub_ps(_mm512_loadu_ps(&snapshot.headY[i]), vSensorY);
+            __m512 z = _mm512_sub_ps(_mm512_loadu_ps(&snapshot.headZ[i]), vSensorZ);
+
+            __m512 w = _mm512_fmadd_ps(x, m12, _mm512_fmadd_ps(y, m13, _mm512_fmadd_ps(z, m14, m15)));
+            __mmask16 frontMask = _mm512_mask_cmp_ps_mask(laneMask, w, _mm512_set1_ps(0.01f), _CMP_GT_OS);
+            if (!frontMask)
+                continue;
+
+            __m512 invW = _mm512_maskz_div_ps(frontMask, _mm512_set1_ps(1.0f), w);
+            __m512 projX = _mm512_fmadd_ps(x, m0, _mm512_fmadd_ps(y, m1, _mm512_fmadd_ps(z, m2, m3)));
+            projX = _mm512_fmadd_ps(_mm512_mul_ps(projX, invW), vCenterX, vCenterX);
+            __m512 projY = _mm512_fmadd_ps(x, m4, _mm512_fmadd_ps(y, m5, _mm512_fmadd_ps(z, m6, m7)));
+            projY = _mm512_fnmadd_ps(_mm512_mul_ps(projY, invW), vCenterY, vCenterY);
+
+            alignas(64) float px[16];
+            alignas(64) float py[16];
+            _mm512_store_ps(px, projX);
+            _mm512_store_ps(py, projY);
+
+            for (size_t lane = 0; lane < remaining && lane < 16; ++lane) {
+                const size_t idx = i + lane;
+                if (!(frontMask & (1u << lane)))
+                    continue;
+                if (!snapshot.isActive[idx] || !snapshot.isVisible[idx])
+                    continue;
+                const float dx = px[lane] - context.centerX;
+                const float dy = py[lane] - context.centerY;
+                const float distance = std::sqrt((dx * dx) + (dy * dy));
+                if (distance < localBestDistance && distance < context.laneLimit) {
+                    localBestDistance = distance;
+                    localBestEntity = static_cast<uint16_t>(idx);
+                }
+            }
+        }
+
+        if (localBestDistance < std::numeric_limits<float>::max()) {
+            raycastResults.TryPush({
+                RaycastResult::Kind::Snapshot,
+                localBestEntity,
+                true,
+                static_cast<uint16_t>(snapIdx),
+                localBestDistance,
+                Vector3(snapshot.headX[localBestEntity], snapshot.headY[localBestEntity], snapshot.headZ[localBestEntity])
+            });
+        }
+    }
 }
 
 void CPhysicsAligner::ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix, const Vector3& sensorPos) {
@@ -181,36 +359,9 @@ void CPhysicsAligner::ResolvePhaseBypassReachability(SoAEntityCache& cache, cons
 
     raycastResults.Reset();
 
-    const size_t jobs = cache.entityCount;
-    const uint32_t workerCount = (std::min<uint32_t>)((std::max)(1, GetOptimalThreadCount()), kMaxWorkers);
-    const size_t chunkSize = (jobs + workerCount - 1) / workerCount;
-    std::vector<std::future<void>> workers;
-    workers.reserve(workerCount);
-
-    for (uint32_t worker = 0; worker < workerCount; ++worker) {
-        const size_t begin = worker * chunkSize;
-        const size_t end = (std::min)(jobs, begin + chunkSize);
-        if (begin >= end)
-            continue;
-
-        workers.emplace_back(std::async(std::launch::async, [&cache, &eyePos, begin, end]() {
-            for (size_t i = begin; i < end; ++i) {
-                if (!cache.isActive[i] || !cache.onScreen[i])
-                    continue;
-
-                const Vector3 targetPos(cache.headX[i], cache.headY[i], cache.headZ[i]);
-                const Vector3 delta = targetPos - eyePos;
-                const Vector3 dir = NormalizeVectorFast(delta);
-                const float approxTravel = (delta.m_x * dir.m_x) + (delta.m_y * dir.m_y) + (delta.m_z * dir.m_z);
-                const bool reachable = (approxTravel > 0.0f) && (!config.occlusionTest || cache.isVisible[i]);
-
-                raycastResults.TryPush({ RaycastResult::Kind::Raycast, static_cast<uint16_t>(i), reachable });
-            }
-        }));
-    }
-
-    for (auto& worker : workers)
-        worker.wait();
+    activeJob.cache = &cache;
+    activeJob.eyePos = eyePos;
+    DispatchParallelJob(JobType::Reachability);
 
     RaycastResult result{};
     while (raycastResults.TryPop(result)) {
@@ -231,17 +382,18 @@ void CPhysicsAligner::CaptureDeterministicSnapshot(const SoAEntityCache& cache, 
 
     SnapshotState& slot = history[writeIndex];
     slot.captureTimeUs = nowUs;
-    slot.entityCount = cache.entityCount;
+    const size_t usedCount = (std::min)(cache.entityCount, SoAEntityCache::MAX_ENTITIES);
+    slot.entityCount = usedCount;
 
-    if (cache.entityCount > 0) {
-        memcpy(slot.headX, cache.headX, sizeof(float) * cache.entityCount);
-        memcpy(slot.headY, cache.headY, sizeof(float) * cache.entityCount);
-        memcpy(slot.headZ, cache.headZ, sizeof(float) * cache.entityCount);
-        memcpy(slot.screenX, cache.screenX, sizeof(float) * cache.entityCount);
-        memcpy(slot.screenY, cache.screenY, sizeof(float) * cache.entityCount);
-        memcpy(slot.isActive, cache.isActive, sizeof(bool) * cache.entityCount);
-        memcpy(slot.isVisible, cache.isVisible, sizeof(bool) * cache.entityCount);
-        memcpy(slot.onScreen, cache.onScreen, sizeof(bool) * cache.entityCount);
+    if (usedCount > 0) {
+        memcpy(slot.headX, cache.headX, sizeof(float) * usedCount);
+        memcpy(slot.headY, cache.headY, sizeof(float) * usedCount);
+        memcpy(slot.headZ, cache.headZ, sizeof(float) * usedCount);
+        memcpy(slot.screenX, cache.screenX, sizeof(float) * usedCount);
+        memcpy(slot.screenY, cache.screenY, sizeof(float) * usedCount);
+        memcpy(slot.isActive, cache.isActive, sizeof(bool) * usedCount);
+        memcpy(slot.isVisible, cache.isVisible, sizeof(bool) * usedCount);
+        memcpy(slot.onScreen, cache.onScreen, sizeof(bool) * usedCount);
     }
 
     writeIndex = (writeIndex + 1) % SnapshotState::MAX_HISTORY;
@@ -267,59 +419,15 @@ bool CPhysicsAligner::ResolveTemporalRollbackTarget(const Vector3& eyePos, float
         return false;
 
     const ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-    const float centerX = screenSize.x * 0.5f;
-    const float centerY = screenSize.y * 0.5f;
-    const float laneLimit = config.fov * 10.0f;
+    activeJob.centerX = screenSize.x * 0.5f;
+    activeJob.centerY = screenSize.y * 0.5f;
+    activeJob.laneLimit = config.fov * 10.0f;
+    activeJob.eyePos = eyePos;
+    activeJob.snapshots = history;
+    activeJob.snapshotCount = snapshotCount;
 
     raycastResults.Reset();
-
-    const uint32_t workerCount = (std::min<uint32_t>)((std::max)(1, GetOptimalThreadCount()), kMaxWorkers);
-    std::vector<std::future<void>> workers;
-    workers.reserve(workerCount);
-
-    const size_t chunkSize = (snapshotCount + workerCount - 1) / workerCount;
-    for (uint32_t worker = 0; worker < workerCount; ++worker) {
-        const size_t begin = worker * chunkSize;
-        const size_t end = (std::min)(snapshotCount, begin + chunkSize);
-        if (begin >= end)
-            continue;
-
-        workers.emplace_back(std::async(std::launch::async, [begin, end, &history, centerX, centerY, laneLimit]() {
-            for (size_t snapIdx = begin; snapIdx < end; ++snapIdx) {
-                const SnapshotState& snapshot = history[snapIdx];
-                if (snapshot.captureTimeUs == 0 || snapshot.entityCount == 0)
-                    continue;
-
-                float localBestDistance = std::numeric_limits<float>::max();
-                uint16_t localBestEntity = 0;
-                for (size_t i = 0; i < snapshot.entityCount; ++i) {
-                    if (!snapshot.isActive[i] || !snapshot.onScreen[i] || !snapshot.isVisible[i])
-                        continue;
-                    const float dx = snapshot.screenX[i] - centerX;
-                    const float dy = snapshot.screenY[i] - centerY;
-                    const float distance = std::sqrt((dx * dx) + (dy * dy));
-                    if (distance < localBestDistance && distance < laneLimit) {
-                        localBestDistance = distance;
-                        localBestEntity = static_cast<uint16_t>(i);
-                    }
-                }
-
-                if (localBestDistance < std::numeric_limits<float>::max()) {
-                    raycastResults.TryPush({
-                        RaycastResult::Kind::Snapshot,
-                        localBestEntity,
-                        true,
-                        static_cast<uint16_t>(snapIdx),
-                        localBestDistance,
-                        Vector3(snapshot.headX[localBestEntity], snapshot.headY[localBestEntity], snapshot.headZ[localBestEntity])
-                    });
-                }
-            }
-        }));
-    }
-
-    for (auto& worker : workers)
-        worker.wait();
+    DispatchParallelJob(JobType::SnapshotRollback);
 
     bool found = false;
     RaycastResult result{};

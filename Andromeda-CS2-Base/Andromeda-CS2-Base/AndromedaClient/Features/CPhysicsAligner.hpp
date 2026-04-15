@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <atomic>
 #include <array>
+#include <vector>
+#include <thread>
 #include <intrin.h>
 
 class CPhysicsAligner
@@ -123,11 +125,35 @@ public:
     };
 
 private:
+    enum class JobType : uint8_t { None = 0, Reachability = 1, SnapshotRollback = 2 };
+    struct alignas(64) JobContext {
+        JobType type = JobType::None;
+        SoAEntityCache* cache = nullptr;
+        Vector3 eyePos{0, 0, 0};
+        SnapshotState* snapshots = nullptr;
+        size_t snapshotCount = 0;
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        float laneLimit = 0.0f;
+    };
+
     static inline BallSimulationParams config;
     static inline MPSCRingBuffer raycastResults;
+    static inline std::vector<std::thread> workerThreads;
+    static inline std::atomic<bool> workerStop{ false };
+    static inline std::atomic<uint32_t> workerGeneration{ 0 };
+    static inline std::atomic<uint32_t> workerCompleted{ 0 };
+    static inline std::atomic<uint32_t> workerCount{ 0 };
+    static inline JobContext activeJob;
     static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix, const Vector3& sensorPos);
     static __m512 fast_rsqrt14_ps(__m512 v);
     static Vector3 NormalizeVectorFast(const Vector3& v);
+    static void InitializeJobSystem();
+    static void ShutdownJobSystem();
+    static void DispatchParallelJob(JobType type);
+    static void JobWorkerMain(uint32_t workerIndex);
+    static void ProcessReachabilityWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context);
+    static void ProcessSnapshotWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context);
     static void ResolvePhaseBypassReachability(SoAEntityCache& cache, const Vector3& eyePos);
     static uint64_t GetTimestampUs();
     static void CaptureDeterministicSnapshot(const SoAEntityCache& cache, uint64_t nowUs);
