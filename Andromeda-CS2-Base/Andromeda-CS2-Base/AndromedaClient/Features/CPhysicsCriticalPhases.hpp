@@ -46,6 +46,29 @@ public:
         float lastTickDt = 0.0f;
     };
 
+    struct alignas(64) ExternalEntitySoA
+    {
+        float* posX = nullptr;
+        float* posY = nullptr;
+        float* posZ = nullptr;
+        float* velX = nullptr;
+        float* velY = nullptr;
+        float* velZ = nullptr;
+        float* baseYaw = nullptr;
+        float* lean = nullptr;
+        float* moveYaw = nullptr;
+        float* collisionYaw = nullptr;
+        size_t count = 0;
+    };
+
+    struct alignas(64) DecryptionState
+    {
+        float bruteYaw = 0.0f;
+        float overlayYaw = 0.0f;
+        float correctedYaw = 0.0f;
+        float desyncDelta = 0.0f;
+    };
+
     class Phase2
     {
     public:
@@ -78,5 +101,14 @@ public:
         static void High_Frequency_Z_Axis_Oscillation(SensorMatrixState& ioState, KinematicOscillationState& ioKinematics, float amplitude, float frequencyHz, float dt);
         static void Micro_Movement_State_Preservation(SensorMatrixState& ioState, float epsilonStep);
         static void Inertial_Damping_Override(Vector3& ioVelocity);
+    };
+
+    class Phase6
+    {
+    public:
+        static DecryptionState Heuristic_Angle_Decryption(const ExternalEntitySoA& entities, size_t entityIndex, float referenceYaw);
+        static float Animation_Overlay_Synchronization(float baseYaw, float leanLayer, float moveYawLayer);
+        static float Asymmetrical_Desync_Correction(float bruteYaw, float overlayYaw, float leanLayerWeight);
+        static void Predictive_State_Extrapolation(ExternalEntitySoA& entities, float missingDeltaTime, float gravityAcceleration);
     };
 };

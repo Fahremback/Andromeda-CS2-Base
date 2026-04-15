@@ -13,6 +13,13 @@ namespace
     constexpr float kTwoPi = 6.28318530717958647692f;
     constexpr float kDegToRad = 0.01745329251994329577f;
     constexpr float kRadToDeg = 57.295779513082320876f;
+
+    inline float WrapYaw(float yaw)
+    {
+        while (yaw > 180.0f) yaw -= 360.0f;
+        while (yaw < -180.0f) yaw += 360.0f;
+        return yaw;
+    }
 }
 
 bool CPhysicsCriticalPhases::Phase2::Volumetric_Penetration_Solver(const PenetrationRay& ray,
@@ -280,4 +287,95 @@ void CPhysicsCriticalPhases::Phase4::Inertial_Damping_Override(Vector3& ioVeloci
     ioVelocity.m_x = out[0];
     ioVelocity.m_y = out[1];
     ioVelocity.m_z = out[2];
+}
+
+CPhysicsCriticalPhases::DecryptionState CPhysicsCriticalPhases::Phase6::Heuristic_Angle_Decryption(const ExternalEntitySoA& entities,
+                                                                                                    size_t entityIndex,
+                                                                                                    float referenceYaw)
+{
+    DecryptionState out{};
+    if (entityIndex >= entities.count || !entities.baseYaw)
+        return out;
+
+    const float baseYaw = entities.baseYaw[entityIndex];
+    const __m128 candidateOffsets = _mm_set_ps(0.0f, 60.0f, 0.0f, -60.0f);
+    const __m128 base = _mm_set1_ps(baseYaw);
+    const __m128 ref = _mm_set1_ps(referenceYaw);
+    const __m128 candidates = _mm_add_ps(base, candidateOffsets);
+    const __m128 delta = _mm_sub_ps(candidates, ref);
+
+    alignas(16) float candidateVals[4];
+    alignas(16) float deltaVals[4];
+    _mm_store_ps(candidateVals, candidates);
+    _mm_store_ps(deltaVals, delta);
+
+    float bestScore = std::numeric_limits<float>::max();
+    float bestYaw = baseYaw;
+    constexpr size_t kEvalCount = 3;
+    for (size_t i = 0; i < kEvalCount; ++i) {
+        const float wrapped = WrapYaw(candidateVals[i]);
+        const float score = std::fabs(WrapYaw(deltaVals[i]));
+        if (score < bestScore) {
+            bestScore = score;
+            bestYaw = wrapped;
+        }
+    }
+
+    const float leanLayer = entities.lean ? entities.lean[entityIndex] : 0.0f;
+    const float moveYawLayer = entities.moveYaw ? entities.moveYaw[entityIndex] : 0.0f;
+    out.bruteYaw = bestYaw;
+    out.overlayYaw = Animation_Overlay_Synchronization(baseYaw, leanLayer, moveYawLayer);
+    out.correctedYaw = Asymmetrical_Desync_Correction(out.bruteYaw, out.overlayYaw, std::fabs(leanLayer));
+    out.desyncDelta = WrapYaw(out.correctedYaw - baseYaw);
+    return out;
+}
+
+float CPhysicsCriticalPhases::Phase6::Animation_Overlay_Synchronization(float baseYaw, float leanLayer, float moveYawLayer)
+{
+    const float leanInfluence = (std::clamp)(leanLayer * 0.35f, -35.0f, 35.0f);
+    const float moveInfluence = (std::clamp)(moveYawLayer * 0.65f, -65.0f, 65.0f);
+    return WrapYaw(baseYaw + leanInfluence + moveInfluence);
+}
+
+float CPhysicsCriticalPhases::Phase6::Asymmetrical_Desync_Correction(float bruteYaw, float overlayYaw, float leanLayerWeight)
+{
+    const float blend = (std::clamp)(leanLayerWeight, 0.0f, 1.0f);
+    const float overlayDelta = WrapYaw(overlayYaw - bruteYaw);
+    return WrapYaw(bruteYaw + (overlayDelta * blend));
+}
+
+void CPhysicsCriticalPhases::Phase6::Predictive_State_Extrapolation(ExternalEntitySoA& entities,
+                                                                     float missingDeltaTime,
+                                                                     float gravityAcceleration)
+{
+    if (!entities.posX || !entities.posY || !entities.posZ || !entities.velX || !entities.velY || !entities.velZ || entities.count == 0)
+        return;
+
+    const float dt = (std::max)(0.0f, missingDeltaTime);
+    const float dt2 = dt * dt;
+    const __m512 vDt = _mm512_set1_ps(dt);
+    const __m512 vHalfDt2 = _mm512_set1_ps(0.5f * dt2);
+    const __m512 vGravity = _mm512_set1_ps(gravityAcceleration);
+
+    for (size_t i = 0; i < entities.count; i += 16) {
+        const size_t remaining = entities.count - i;
+        const __mmask16 laneMask = static_cast<__mmask16>((remaining >= 16) ? 0xFFFFu : ((1u << remaining) - 1u));
+
+        __m512 posX = _mm512_maskz_loadu_ps(laneMask, &entities.posX[i]);
+        __m512 posY = _mm512_maskz_loadu_ps(laneMask, &entities.posY[i]);
+        __m512 posZ = _mm512_maskz_loadu_ps(laneMask, &entities.posZ[i]);
+        __m512 velX = _mm512_maskz_loadu_ps(laneMask, &entities.velX[i]);
+        __m512 velY = _mm512_maskz_loadu_ps(laneMask, &entities.velY[i]);
+        __m512 velZ = _mm512_maskz_loadu_ps(laneMask, &entities.velZ[i]);
+
+        posX = _mm512_fmadd_ps(velX, vDt, posX);
+        posY = _mm512_fmadd_ps(velY, vDt, posY);
+        posZ = _mm512_fmadd_ps(velZ, vDt, _mm512_fmadd_ps(vGravity, vHalfDt2, posZ));
+        velZ = _mm512_fmadd_ps(vGravity, vDt, velZ);
+
+        _mm512_mask_storeu_ps(&entities.posX[i], laneMask, posX);
+        _mm512_mask_storeu_ps(&entities.posY[i], laneMask, posY);
+        _mm512_mask_storeu_ps(&entities.posZ[i], laneMask, posZ);
+        _mm512_mask_storeu_ps(&entities.velZ[i], laneMask, velZ);
+    }
 }
