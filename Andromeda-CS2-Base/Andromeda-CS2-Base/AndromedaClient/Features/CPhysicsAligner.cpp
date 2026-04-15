@@ -19,10 +19,14 @@
 #include <memory>
 #include <type_traits>
 #include <malloc.h>
+#include <chrono>
 
 thread_local CPhysicsAligner::SoAEntityCache CPhysicsAligner::ThreadLocalStaging::localCache;
 thread_local CPhysicsAligner::FireCommand CPhysicsAligner::ThreadLocalStaging::pendingCommand;
 thread_local CPhysicsAligner::ArenaAllocator CPhysicsAligner::ThreadLocalStaging::localArena;
+thread_local CPhysicsAligner::SnapshotState CPhysicsAligner::ThreadLocalStaging::snapshotHistory[CPhysicsAligner::SnapshotState::MAX_HISTORY];
+thread_local size_t CPhysicsAligner::ThreadLocalStaging::snapshotWriteIndex = 0;
+thread_local size_t CPhysicsAligner::ThreadLocalStaging::snapshotCount = 0;
 
 namespace
 {
@@ -72,7 +76,7 @@ void CPhysicsAligner::Initialize() {
     config = BallSimulationParams{};
 }
 
-void CPhysicsAligner::ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix) {
+void CPhysicsAligner::ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix, const Vector3& sensorPos) {
     if (cache.entityCount == 0) return;
 
     __m512 m0 = _mm512_set1_ps(viewMatrix.m_data[0][0]); __m512 m1 = _mm512_set1_ps(viewMatrix.m_data[0][1]);
@@ -89,12 +93,15 @@ void CPhysicsAligner::ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, con
     __m512 centerY = _mm512_set1_ps(screen.y * 0.5f);
 
     const size_t simdStride = 16;
+    const __m512 sensorX = _mm512_set1_ps(sensorPos.m_x);
+    const __m512 sensorY = _mm512_set1_ps(sensorPos.m_y);
+    const __m512 sensorZ = _mm512_set1_ps(sensorPos.m_z);
     for (size_t i = 0; i < cache.entityCount; i += simdStride) {
         const size_t remaining = cache.entityCount - i;
         const __mmask16 laneMask = static_cast<__mmask16>((remaining >= simdStride) ? 0xFFFFu : ((1u << remaining) - 1u));
-        __m512 x = _mm512_loadu_ps(&cache.headX[i]);
-        __m512 y = _mm512_loadu_ps(&cache.headY[i]);
-        __m512 z = _mm512_loadu_ps(&cache.headZ[i]);
+        __m512 x = _mm512_sub_ps(_mm512_loadu_ps(&cache.headX[i]), sensorX);
+        __m512 y = _mm512_sub_ps(_mm512_loadu_ps(&cache.headY[i]), sensorY);
+        __m512 z = _mm512_sub_ps(_mm512_loadu_ps(&cache.headZ[i]), sensorZ);
 
         __m512 w = _mm512_fmadd_ps(x, m12, _mm512_fmadd_ps(y, m13, _mm512_fmadd_ps(z, m14, m15)));
         __mmask16 frontMask = _mm512_mask_cmp_ps_mask(laneMask, w, _mm512_set1_ps(0.01f), _CMP_GT_OS);
@@ -197,7 +204,7 @@ void CPhysicsAligner::ResolvePhaseBypassReachability(SoAEntityCache& cache, cons
                 const float approxTravel = (delta.m_x * dir.m_x) + (delta.m_y * dir.m_y) + (delta.m_z * dir.m_z);
                 const bool reachable = (approxTravel > 0.0f) && (!config.occlusionTest || cache.isVisible[i]);
 
-                raycastResults.TryPush({ static_cast<uint16_t>(i), reachable });
+                raycastResults.TryPush({ RaycastResult::Kind::Raycast, static_cast<uint16_t>(i), reachable });
             }
         }));
     }
@@ -207,23 +214,145 @@ void CPhysicsAligner::ResolvePhaseBypassReachability(SoAEntityCache& cache, cons
 
     RaycastResult result{};
     while (raycastResults.TryPop(result)) {
-        if (result.entityIndex < cache.entityCount)
+        if (result.kind == RaycastResult::Kind::Raycast && result.entityIndex < cache.entityCount)
             cache.isVisible[result.entityIndex] = result.reachable;
     }
+}
+
+uint64_t CPhysicsAligner::GetTimestampUs() {
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(now).count());
+}
+
+void CPhysicsAligner::CaptureDeterministicSnapshot(const SoAEntityCache& cache, uint64_t nowUs) {
+    auto& history = ThreadLocalStaging::snapshotHistory;
+    auto& writeIndex = ThreadLocalStaging::snapshotWriteIndex;
+    auto& snapshotCount = ThreadLocalStaging::snapshotCount;
+
+    SnapshotState& slot = history[writeIndex];
+    slot.captureTimeUs = nowUs;
+    slot.entityCount = cache.entityCount;
+
+    if (cache.entityCount > 0) {
+        memcpy(slot.headX, cache.headX, sizeof(float) * cache.entityCount);
+        memcpy(slot.headY, cache.headY, sizeof(float) * cache.entityCount);
+        memcpy(slot.headZ, cache.headZ, sizeof(float) * cache.entityCount);
+        memcpy(slot.screenX, cache.screenX, sizeof(float) * cache.entityCount);
+        memcpy(slot.screenY, cache.screenY, sizeof(float) * cache.entityCount);
+        memcpy(slot.isActive, cache.isActive, sizeof(bool) * cache.entityCount);
+        memcpy(slot.isVisible, cache.isVisible, sizeof(bool) * cache.entityCount);
+        memcpy(slot.onScreen, cache.onScreen, sizeof(bool) * cache.entityCount);
+    }
+
+    writeIndex = (writeIndex + 1) % SnapshotState::MAX_HISTORY;
+    snapshotCount = (std::min)(snapshotCount + 1, SnapshotState::MAX_HISTORY);
+}
+
+void CPhysicsAligner::InvalidateStaleSnapshots(uint64_t nowUs, uint64_t staleWindowUs) {
+    auto& history = ThreadLocalStaging::snapshotHistory;
+    auto& snapshotCount = ThreadLocalStaging::snapshotCount;
+    for (size_t i = 0; i < snapshotCount; ++i) {
+        SnapshotState& snapshot = history[i];
+        if (snapshot.captureTimeUs == 0 || (nowUs - snapshot.captureTimeUs) > staleWindowUs) {
+            snapshot.captureTimeUs = 0;
+            snapshot.entityCount = 0;
+        }
+    }
+}
+
+bool CPhysicsAligner::ResolveTemporalRollbackTarget(const Vector3& eyePos, float& inOutBestDistance, Vector3& outTargetPos) {
+    auto& history = ThreadLocalStaging::snapshotHistory;
+    auto& snapshotCount = ThreadLocalStaging::snapshotCount;
+    if (snapshotCount == 0)
+        return false;
+
+    const ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    const float centerX = screenSize.x * 0.5f;
+    const float centerY = screenSize.y * 0.5f;
+    const float laneLimit = config.fov * 10.0f;
+
+    raycastResults.Reset();
+
+    const uint32_t workerCount = (std::min<uint32_t>)((std::max)(1, GetOptimalThreadCount()), kMaxWorkers);
+    std::vector<std::future<void>> workers;
+    workers.reserve(workerCount);
+
+    const size_t chunkSize = (snapshotCount + workerCount - 1) / workerCount;
+    for (uint32_t worker = 0; worker < workerCount; ++worker) {
+        const size_t begin = worker * chunkSize;
+        const size_t end = (std::min)(snapshotCount, begin + chunkSize);
+        if (begin >= end)
+            continue;
+
+        workers.emplace_back(std::async(std::launch::async, [begin, end, &history, centerX, centerY, laneLimit]() {
+            for (size_t snapIdx = begin; snapIdx < end; ++snapIdx) {
+                const SnapshotState& snapshot = history[snapIdx];
+                if (snapshot.captureTimeUs == 0 || snapshot.entityCount == 0)
+                    continue;
+
+                float localBestDistance = std::numeric_limits<float>::max();
+                uint16_t localBestEntity = 0;
+                for (size_t i = 0; i < snapshot.entityCount; ++i) {
+                    if (!snapshot.isActive[i] || !snapshot.onScreen[i] || !snapshot.isVisible[i])
+                        continue;
+                    const float dx = snapshot.screenX[i] - centerX;
+                    const float dy = snapshot.screenY[i] - centerY;
+                    const float distance = std::sqrt((dx * dx) + (dy * dy));
+                    if (distance < localBestDistance && distance < laneLimit) {
+                        localBestDistance = distance;
+                        localBestEntity = static_cast<uint16_t>(i);
+                    }
+                }
+
+                if (localBestDistance < std::numeric_limits<float>::max()) {
+                    raycastResults.TryPush({
+                        RaycastResult::Kind::Snapshot,
+                        localBestEntity,
+                        true,
+                        static_cast<uint16_t>(snapIdx),
+                        localBestDistance,
+                        Vector3(snapshot.headX[localBestEntity], snapshot.headY[localBestEntity], snapshot.headZ[localBestEntity])
+                    });
+                }
+            }
+        }));
+    }
+
+    for (auto& worker : workers)
+        worker.wait();
+
+    bool found = false;
+    RaycastResult result{};
+    while (raycastResults.TryPop(result)) {
+        if (result.kind != RaycastResult::Kind::Snapshot || !result.reachable)
+            continue;
+        if (result.score < inOutBestDistance) {
+            inOutBestDistance = result.score;
+            outTargetPos = result.snapshotPosition;
+            found = true;
+        }
+    }
+
+    (void)eyePos;
+    return found;
 }
 
 void CPhysicsAligner::SolveConstraint(Vector3& opticalOrientation, bool& triggerInteraction) {
     if (!config.enabled) return;
 
     auto& cache = ThreadLocalStaging::localCache;
+    auto& localArena = ThreadLocalStaging::localArena;
     if (cache.entityCount == 0) return;
 
     auto* pLocalPawn = GetCL_Players()->GetLocalPlayerPawn();
     if (!pLocalPawn) return;
 
-    ProjectCoordinatesToGrid_AVX512(cache, g_ViewMatrix);
     const Vector3 eyePos = pLocalPawn->m_vOldOrigin() + pLocalPawn->m_vecViewOffset();
+    ProjectCoordinatesToGrid_AVX512(cache, g_ViewMatrix, eyePos);
     ResolvePhaseBypassReachability(cache, eyePos);
+    const uint64_t nowUs = GetTimestampUs();
+    InvalidateStaleSnapshots(nowUs, 200000ULL);
+    CaptureDeterministicSnapshot(cache, nowUs);
 
     const ImVec2 screenSize = ImGui::GetIO().DisplaySize;
     const __m512 centerX = _mm512_set1_ps(screenSize.x * 0.5f);
@@ -237,6 +366,9 @@ void CPhysicsAligner::SolveConstraint(Vector3& opticalOrientation, bool& trigger
     float bestDistance = std::numeric_limits<float>::max();
     size_t bestIndex = 0;
     constexpr size_t stride = 16;
+    float* distanceScratch = static_cast<float*>(localArena.Alloc(sizeof(float) * cache.entityCount));
+    if (distanceScratch)
+        memset(distanceScratch, 0, sizeof(float) * cache.entityCount);
 
     for (size_t i = 0; i < cache.entityCount; i += stride) {
         const size_t remaining = cache.entityCount - i;
@@ -271,6 +403,8 @@ void CPhysicsAligner::SolveConstraint(Vector3& opticalOrientation, bool& trigger
             const float preciseDx = cache.screenX[idx] - (screenSize.x * 0.5f);
             const float preciseDy = cache.screenY[idx] - (screenSize.y * 0.5f);
             const float preciseDistance = std::sqrt((preciseDx * preciseDx) + (preciseDy * preciseDy));
+            if (distanceScratch)
+                distanceScratch[idx] = preciseDistance;
 
             if (preciseDistance < bestDistance) {
                 bestDistance = preciseDistance;
@@ -280,10 +414,18 @@ void CPhysicsAligner::SolveConstraint(Vector3& opticalOrientation, bool& trigger
         }
     }
 
+    Vector3 temporalTargetPos{0, 0, 0};
+    if (ResolveTemporalRollbackTarget(eyePos, bestDistance, temporalTargetPos)) {
+        best.shouldFire = true;
+        bestIndex = SoAEntityCache::MAX_ENTITIES; // sentinel for temporal path
+    }
+
     if (!best.shouldFire)
         return;
 
-    const Vector3 targetPos(cache.headX[bestIndex], cache.headY[bestIndex], cache.headZ[bestIndex]);
+    const Vector3 targetPos = (bestIndex == SoAEntityCache::MAX_ENTITIES)
+        ? temporalTargetPos
+        : Vector3(cache.headX[bestIndex], cache.headY[bestIndex], cache.headZ[bestIndex]);
     QAngle qAngle = Math::CalcAngle(eyePos, targetPos);
     best.targetAngle = Vector3(qAngle.m_x, qAngle.m_y, qAngle.m_z);
     best.fov = bestDistance * 0.1f;

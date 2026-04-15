@@ -75,8 +75,28 @@ public:
     };
 
     struct alignas(64) RaycastResult {
+        enum class Kind : uint8_t { Raycast = 0, Snapshot = 1 };
+        Kind kind = Kind::Raycast;
         uint16_t entityIndex = 0;
         bool reachable = false;
+        uint16_t snapshotIndex = 0;
+        float score = 0.0f;
+        Vector3 snapshotPosition{0, 0, 0};
+    };
+
+    struct alignas(64) SnapshotState
+    {
+        static constexpr size_t MAX_HISTORY = 32;
+        alignas(64) float headX[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) float headY[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) float headZ[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) float screenX[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) float screenY[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) bool isActive[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) bool isVisible[SoAEntityCache::MAX_ENTITIES];
+        alignas(64) bool onScreen[SoAEntityCache::MAX_ENTITIES];
+        uint64_t captureTimeUs = 0;
+        size_t entityCount = 0;
     };
 
     class alignas(64) MPSCRingBuffer {
@@ -97,15 +117,22 @@ public:
         static thread_local SoAEntityCache localCache;
         static thread_local FireCommand pendingCommand;
         static thread_local ArenaAllocator localArena;
+        static thread_local SnapshotState snapshotHistory[SnapshotState::MAX_HISTORY];
+        static thread_local size_t snapshotWriteIndex;
+        static thread_local size_t snapshotCount;
     };
 
 private:
     static inline BallSimulationParams config;
     static inline MPSCRingBuffer raycastResults;
-    static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix);
+    static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix, const Vector3& sensorPos);
     static __m512 fast_rsqrt14_ps(__m512 v);
     static Vector3 NormalizeVectorFast(const Vector3& v);
     static void ResolvePhaseBypassReachability(SoAEntityCache& cache, const Vector3& eyePos);
+    static uint64_t GetTimestampUs();
+    static void CaptureDeterministicSnapshot(const SoAEntityCache& cache, uint64_t nowUs);
+    static void InvalidateStaleSnapshots(uint64_t nowUs, uint64_t staleWindowUs);
+    static bool ResolveTemporalRollbackTarget(const Vector3& eyePos, float& inOutBestDistance, Vector3& outTargetPos);
 
 public:
     static void Initialize();
