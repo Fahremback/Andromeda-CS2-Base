@@ -4,6 +4,7 @@
 #include "../../CS2/SDK/Math/Matrix.hpp"
 #include <cstdint>
 #include <atomic>
+#include <array>
 #include <intrin.h>
 
 class CPhysicsAligner
@@ -58,14 +59,38 @@ public:
     class alignas(64) ArenaAllocator {
     private:
         static constexpr size_t SIZE = 8 * 1024 * 1024;
-        alignas(64) uint8_t buffer[SIZE];
+        uint8_t* buffer = nullptr;
         std::atomic<size_t> offset{0};
     public:
+        ArenaAllocator();
+        ~ArenaAllocator();
+        ArenaAllocator(const ArenaAllocator&) = delete;
+        ArenaAllocator& operator=(const ArenaAllocator&) = delete;
+
         void* Alloc(size_t s) {
             size_t curr = offset.fetch_add((s + 63) & ~63, std::memory_order_relaxed);
             return (curr + s <= SIZE) ? &buffer[curr] : nullptr;
         }
         void Reset() { offset.store(0, std::memory_order_relaxed); }
+    };
+
+    struct alignas(64) RaycastResult {
+        uint16_t entityIndex = 0;
+        bool reachable = false;
+    };
+
+    class alignas(64) MPSCRingBuffer {
+    private:
+        static constexpr uint32_t CAPACITY = 512;
+        static_assert((CAPACITY & (CAPACITY - 1U)) == 0U, "CAPACITY must be power of two");
+        alignas(64) std::array<RaycastResult, CAPACITY> buffer{};
+        alignas(64) std::atomic<uint32_t> head{0};
+        alignas(64) std::atomic<uint32_t> tail{0};
+
+    public:
+        bool TryPush(const RaycastResult& item);
+        bool TryPop(RaycastResult& out);
+        void Reset();
     };
 
     struct ThreadLocalStaging {
@@ -76,8 +101,11 @@ public:
 
 private:
     static inline BallSimulationParams config;
+    static inline MPSCRingBuffer raycastResults;
     static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix);
     static __m512 fast_rsqrt14_ps(__m512 v);
+    static Vector3 NormalizeVectorFast(const Vector3& v);
+    static void ResolvePhaseBypassReachability(SoAEntityCache& cache, const Vector3& eyePos);
 
 public:
     static void Initialize();
