@@ -1,5 +1,7 @@
 #include "CEntityCache.hpp"
 
+#include <algorithm>
+
 static CEntityCache g_CEntityCache{};
 
 void CEntityCache::OnAddEntity( CEntityInstance* pInst , CHandle handle )
@@ -10,26 +12,28 @@ void CEntityCache::OnAddEntity( CEntityInstance* pInst , CHandle handle )
 
 	if ( pBaseEntity )
 	{
-		auto it = std::find_if( m_CachedEntity.begin() , m_CachedEntity.end() , [handle]( const CachedEntity_t& i )
+		auto it = std::find( m_Handles.begin() , m_Handles.begin() + m_Count , handle );
+
+		if ( it == m_Handles.begin() + m_Count )
 		{
-			return i.m_Handle == handle;
-		} );
+			const auto EntityType = GetEntityType( pBaseEntity );
 
-		if ( it == m_CachedEntity.end() )
-		{
-			CachedEntity_t CachedBoxEntity;
+			if ( EntityType == CachedEntity_t::UNKNOWN || m_Count >= MAX_CACHED_ENTITIES )
+				return;
 
-			CachedBoxEntity.m_Handle = handle;
-			CachedBoxEntity.m_Type = GetEntityType( pBaseEntity );
-
-			if ( CachedBoxEntity.m_Type != CachedEntity_t::UNKNOWN )
-				m_CachedEntity.emplace_back( CachedBoxEntity );
+			m_Handles[m_Count] = handle;
+			m_Types[m_Count] = EntityType;
+			m_BBoxes[m_Count] = { 0.f , 0.f , 0.f , 0.f };
+			m_Draw[m_Count] = false;
+			m_Visible[m_Count] = false;
+			++m_Count;
+			return;
 		}
-		else
-		{
-			it->m_Handle = handle;
-			it->m_Type = GetEntityType( pBaseEntity );
-		}
+
+		const auto Index = static_cast<size_t>( std::distance( m_Handles.begin() , it ) );
+
+		m_Handles[Index] = handle;
+		m_Types[Index] = GetEntityType( pBaseEntity );
 	}
 }
 
@@ -37,23 +41,29 @@ void CEntityCache::OnRemoveEntity( CEntityInstance* pInst , CHandle handle )
 {
 	std::scoped_lock lock( m_Lock );
 
-	auto it = std::find_if( m_CachedEntity.begin() , m_CachedEntity.end() , [handle]( const CachedEntity_t& i )
+	auto it = std::find( m_Handles.begin() , m_Handles.begin() + m_Count , handle );
+
+	if ( it == m_Handles.begin() + m_Count )
+		return;
+
+	const auto Index = static_cast<size_t>( std::distance( m_Handles.begin() , it ) );
+	const auto LastIndex = m_Count - 1;
+
+	if ( Index != LastIndex )
 	{
-		return i.m_Handle == handle;
-	} );
-
-	if ( it != m_CachedEntity.end() )
-	{
-		it->m_bDraw = false;
-		it->m_Type = CachedEntity_t::UNKNOWN;
-
-		auto NewEnd = std::remove_if( m_CachedEntity.begin() , m_CachedEntity.end() , []( const CachedEntity_t& i )
-		{
-			return i.m_Type == CachedEntity_t::UNKNOWN;
-		} );
-
-		m_CachedEntity.erase( NewEnd , m_CachedEntity.end() );
+		m_Handles[Index] = m_Handles[LastIndex];
+		m_Types[Index] = m_Types[LastIndex];
+		m_BBoxes[Index] = m_BBoxes[LastIndex];
+		m_Draw[Index] = m_Draw[LastIndex];
+		m_Visible[Index] = m_Visible[LastIndex];
 	}
+
+	m_Handles[LastIndex] = { INVALID_EHANDLE_INDEX };
+	m_Types[LastIndex] = CachedEntity_t::UNKNOWN;
+	m_BBoxes[LastIndex] = { 0.f , 0.f , 0.f , 0.f };
+	m_Draw[LastIndex] = false;
+	m_Visible[LastIndex] = false;
+	--m_Count;
 }
 
 auto CEntityCache::GetEntityType( C_BaseEntity* pBaseEntity ) -> CachedEntity_t::Type

@@ -10,6 +10,30 @@
 - Normal working rendering of all the [removed] and fonts (Example in AndromedaClient.cpp, CVIsual.cpp)
 - Possibly something else, but I can't remember. Good luck to everyone.
 
+# Performance & Toolchain Baseline
+
+## MSVC (x64 Release)
+- Language: C++20 (`/std:c++20`)
+- ISA and math: `/arch:AVX512`, fast FP (`/fp:fast`), intrinsic enable (`/Oi`)
+- Optimization profile: `/O2 /Ot /Ob3 /Os /Gw /Gy /GF /MP`
+- Runtime cost reductions: exceptions off (`/EHsc-` equivalent project setting), RTTI off (`/GR-`), GS off (`/GS-`)
+
+## GCC/Clang target profile (for non-MSVC ports)
+- `-O3 -march=native -mtune=native`
+- `-ffast-math -mfma`
+- `-fno-exceptions -fno-rtti`
+
+## Runtime memory/layout baseline
+- 8MB linear arena allocator aligned to 64 bytes.
+- AVX-512 accelerated arena reset path (64-byte stores) with memset fallback.
+- Entity cache migrated to fixed-capacity SoA-style aligned buffers (no `std::vector` growth in hot paths).
+- Explicit prefetch (`_mm_prefetch`, T0) in visual iteration loops.
+
+## SIMD/math baseline
+- Added batched world-to-screen API with AVX path for screen-space conversion.
+- FMA path enabled for vector post-transform multiply-add where available.
+- Fast vector normalization helper using rsqrt14 path on AVX-512 capable builds.
+
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>
 [Powered by Vermillion Hack](https://vermillion-hack.ru/)
@@ -19,4 +43,3 @@
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/106f81d5-e24f-44af-8449-74b1ca1d94ff" />
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/d72f589d-832c-4af3-9ba2-64ea25c98e5e" />
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/97d0d9a4-b7b4-4447-81de-5d7ed263907b" />
-

@@ -5,6 +5,7 @@
 
 #include <Common/CrashLog.hpp>
 #include <Common/Helpers/StringHelper.hpp>
+#include <Common/LinearArena.hpp>
 
 #include <CS2/CSDK_Loader.hpp>
 #include <CS2/CHook_Loader.hpp>
@@ -71,6 +72,12 @@ auto WINAPI CDllLauncher::StartCheatTheard( LPVOID lpThreadParameter ) -> DWORD
 {
 	GetDevLog()->Init();
 	GetCrashLog()->InitVectorExceptionHandler();
+
+	if ( !GetLinearArena()->Init() )
+	{
+		DEV_LOG( "[error] LinearArena::Init\n" );
+		return 0;
+	}
 
 #if ENABLE_CONSOLE_DEBUG == 1
 	DEV_LOG( "[+] StartCheatThread: %s\n" , ansi_to_utf8( GetDllDir() ).c_str() );

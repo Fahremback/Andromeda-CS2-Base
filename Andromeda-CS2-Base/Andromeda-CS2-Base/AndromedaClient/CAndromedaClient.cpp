@@ -5,6 +5,8 @@
 #include <CS2/SDK/Interface/IGameEvent.hpp>
 #include <CS2/SDK/Update/CCSGOInput.hpp>
 
+#include <Common/LinearArena.hpp>
+
 #include <AndromedaClient/GUI/CAndromedaMenu.hpp>
 #include <AndromedaClient/CAndromedaGUI.hpp>
 #include <AndromedaClient/Fonts/CFontManager.hpp>
@@ -64,6 +66,7 @@ auto CAndromedaClient::OnClientOutput() -> void
 
 auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
 {
+	GetLinearArena()->Reset();
 	GetVisual()->OnCreateMove();
 }
 

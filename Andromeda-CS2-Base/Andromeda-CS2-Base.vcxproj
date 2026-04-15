@@ -108,6 +108,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;ANDROMEDACS2BASE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -118,6 +120,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
@@ -126,8 +129,14 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AdditionalOptions>/arch:AVX512 /fp:fast /Ot /Ob3 /Oi /Os /Gw /Gy /GF /MP %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -157,6 +166,7 @@
     <ClCompile Include="Andromeda-CS2-Base\Common\Include\ImGui\imgui_widgets.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\Common\Include\ImGui\Misc\freetype\imgui_freetype.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\Common\MemoryEngine.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\Common\LinearArena.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\CBasePattern.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\CHook_Loader.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\CSDK_Loader.cpp" />
@@ -265,6 +275,7 @@
     <ClInclude Include="Andromeda-CS2-Base\Common\Common.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\CrashLog.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\DevLog.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\Common\LinearArena.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Helpers\ModuleLoaderHelper.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Helpers\StringHelper.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Include\Config.hpp" />

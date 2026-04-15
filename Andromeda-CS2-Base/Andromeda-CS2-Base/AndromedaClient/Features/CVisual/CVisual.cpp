@@ -6,6 +6,7 @@
 #include <AndromedaClient/Render/CRender.hpp>
 #include <AndromedaClient/Render/CRenderStackSystem.hpp>
 #include <AndromedaClient/Settings/Settings.hpp>
+#include <Common/LinearArena.hpp>
 
 #include <GameClient/CEntityCache/CEntityCache.hpp>
 #include <GameClient/CL_Players.hpp>
@@ -22,30 +23,34 @@ auto CVisual::OnRender() -> void
 	if ( !Settings::Visual::Active )
 		return;
 
-	const auto& CachedVec = GetEntityCache()->GetCachedEntity();
+	auto* pEntityCache = GetEntityCache();
+	std::scoped_lock Lock( pEntityCache->GetLock() );
 
-	std::scoped_lock Lock( GetEntityCache()->GetLock() );
+	const auto Count = pEntityCache->GetCount();
 
-	for ( const auto& CachedEntity : *CachedVec )
+	for ( size_t i = 0; i < Count; ++i )
 	{
-		auto pEntity = CachedEntity.m_Handle.Get();
+		if ( i + 1 < Count )
+			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+
+		auto pEntity = pEntityCache->GetHandle( i ).Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != CachedEntity.m_Handle )
+		if ( hEntity != pEntityCache->GetHandle( i ) )
 			continue;
 
-		switch ( CachedEntity.m_Type )
+		switch ( pEntityCache->GetType( i ) )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
 				auto* pCCSPlayerController = reinterpret_cast<CCSPlayerController*>( pEntity );
 
-				if ( CachedEntity.m_bDraw )
-					OnRenderPlayerEsp( pCCSPlayerController , CachedEntity.m_Bbox , CachedEntity.m_bVisible );
+				if ( pEntityCache->ShouldDraw( i ) )
+					OnRenderPlayerEsp( pCCSPlayerController , pEntityCache->GetBBox( i ) , pEntityCache->IsVisible( i ) );
 			}
 			break;
 		}
@@ -75,8 +80,6 @@ auto CVisual::OnRenderPlayerEsp( CCSPlayerController* pCCSPlayerController , con
 
 	max.x = std::ceilf( max.x );
 	max.y = std::ceilf( max.y );
-
-	std::vector<std::string> PlayerItemIconList;
 
 	auto Draw = false;
 
@@ -255,34 +258,40 @@ auto CVisual::OnCreateMove() -> void
 	if ( !Settings::Visual::Active )
 		return;
 
-	const auto CachedVec = GetEntityCache()->GetCachedEntity();
+	auto* pEntityCache = GetEntityCache();
+	std::scoped_lock Lock( pEntityCache->GetLock() );
 
-	for ( auto& CachedEntity : *CachedVec )
+	const auto Count = pEntityCache->GetCount();
+
+	for ( size_t i = 0; i < Count; ++i )
 	{
-		auto pEntity = CachedEntity.m_Handle.Get();
+		if ( i + 1 < Count )
+			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+
+		auto pEntity = pEntityCache->GetHandle( i ).Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != CachedEntity.m_Handle )
+		if ( hEntity != pEntityCache->GetHandle( i ) )
 			continue;
 
-		switch ( CachedEntity.m_Type )
+		switch ( pEntityCache->GetType( i ) )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
 				auto* pCCSPlayerController = reinterpret_cast<CCSPlayerController*>( pEntity );
 
-				CachedEntity.m_bVisible = GetCL_VisibleCheck()->IsPlayerControllerVisible( pCCSPlayerController );
+				pEntityCache->SetVisible( i , GetCL_VisibleCheck()->IsPlayerControllerVisible( pCCSPlayerController ) );
 
 				if ( Settings::Visual::Glow && pCCSPlayerController->m_bPawnIsAlive() )
 				{
 					auto* pC_CSPlayerPawn = pCCSPlayerController->m_hPawn().Get<C_CSPlayerPawn>();
 					if ( pC_CSPlayerPawn && pC_CSPlayerPawn->IsPlayerPawn() )
 					{
-						ApplyGlow( pC_CSPlayerPawn , CachedEntity.m_bVisible , pCCSPlayerController->m_iTeamNum() );
+						ApplyGlow( pC_CSPlayerPawn , pEntityCache->IsVisible( i ) , pCCSPlayerController->m_iTeamNum() );
 					}
 				}
 			}
@@ -298,23 +307,27 @@ auto CVisual::CalculateBoundingBoxes() -> void
 	if ( !SDK::Interfaces::EngineToClient()->IsInGame() )
 		return;
 
-	const auto& CachedVec = GetEntityCache()->GetCachedEntity();
+	auto* pEntityCache = GetEntityCache();
+	std::scoped_lock Lock( pEntityCache->GetLock() );
 
-	std::scoped_lock Lock( GetEntityCache()->GetLock() );
+	const auto Count = pEntityCache->GetCount();
 
-	for ( auto& it : *CachedVec )
+	for ( size_t i = 0; i < Count; ++i )
 	{
-		auto pEntity = it.m_Handle.Get();
+		if ( i + 1 < Count )
+			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+
+		auto pEntity = pEntityCache->GetHandle( i ).Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != it.m_Handle )
+		if ( hEntity != pEntityCache->GetHandle( i ) )
 			continue;
 
-		switch ( it.m_Type )
+		switch ( pEntityCache->GetType( i ) )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
@@ -322,7 +335,12 @@ auto CVisual::CalculateBoundingBoxes() -> void
 				auto pPlayerPawn = pPlayerController->m_hPawn().Get<C_CSPlayerPawn>();
 
 				if ( pPlayerPawn && pPlayerPawn->IsPlayerPawn() && pPlayerController->m_bPawnIsAlive() )
-					it.m_bDraw = pPlayerPawn->GetBoundingBox( it.m_Bbox );
+				{
+					Rect_t BBox = {};
+					const auto ShouldDraw = pPlayerPawn->GetBoundingBox( BBox );
+					pEntityCache->SetBBox( i , BBox );
+					pEntityCache->SetDraw( i , ShouldDraw );
+				}
 			}
 			break;
 		}
@@ -392,17 +410,23 @@ auto CVisual::DrawBoneESP( C_CSPlayerPawn* pC_CSPlayerPawn , const bool bVisible
 
 	for ( const auto& Connection : BoneConnections )
 	{
-		const Vector3 FromBone = GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szFrom );
-		const Vector3 ToBone = GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szTo );
+		const Vector3 BonePair[2] =
+		{
+			GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szFrom ),
+			GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szTo )
+		};
 
-		if ( FromBone.IsZero() || ToBone.IsZero() )
+		if ( BonePair[0].IsZero() || BonePair[1].IsZero() )
 			continue;
 
-		ImVec2 FromScreen , ToScreen;
+		ImVec2 ScreenPoints[2]{};
+		bool IsVisible[2]{};
 
-		if ( Math::WorldToScreen( FromBone , FromScreen ) && Math::WorldToScreen( ToBone , ToScreen ) )
+		Math::WorldToScreenBatch( BonePair , ScreenPoints , IsVisible , 2 );
+
+		if ( IsVisible[0] && IsVisible[1] )
 		{
-			GetRenderStackSystem()->DrawLine( FromScreen , ToScreen , BoneColor , 1.5f );
+			GetRenderStackSystem()->DrawLine( ScreenPoints[0] , ScreenPoints[1] , BoneColor , 1.5f );
 		}
 	}
 }

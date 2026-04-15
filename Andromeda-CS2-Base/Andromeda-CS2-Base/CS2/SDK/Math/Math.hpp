@@ -2,6 +2,7 @@
 
 #include <Common/Common.hpp>
 #include <array>
+#include <cstddef>
 
 #include <ImGui/imgui.h>
 
@@ -35,6 +36,8 @@ namespace Math
 	auto WorldToScreen( const Vector3& vIn , ImVec2& vOut ) -> bool;
 	auto WorldToScreen( const Vector3& vIn , Vector2& vOut ) -> bool;
 	auto WorldToScreen( const Vector3& vIn , Vector3& vOut ) -> bool;
+	auto WorldToScreenBatch( const Vector3* pIn , ImVec2* pOut , bool* pVisible , size_t Count ) -> size_t;
+	auto NormalizeVectorFast( Vector3& Vec ) -> void;
 
 	auto AngleNormalize( float angle ) -> float;
 	auto NormalizeAngles( QAngle& QAngle ) -> void;

@@ -1,6 +1,8 @@
 #include "Math.hpp"
 
+#include <cfloat>
 #include <cmath>
+#include <immintrin.h>
 #include <ImGui/imgui_internal.h>
 
 #include <CS2/SDK/SDK.hpp>
@@ -62,6 +64,108 @@ namespace Math
         vOut.m_y = static_cast<float>( ScreenHeight ) - ( ( ( vOut.m_y + 1.0f ) * 0.5f ) * static_cast<float>( ScreenHeight ) );
 
         return ret;
+    }
+
+    auto WorldToScreenBatch( const Vector3* pIn , ImVec2* pOut , bool* pVisible , size_t Count ) -> size_t
+    {
+        if ( !pIn || !pOut || !pVisible || !Count )
+            return 0;
+
+        auto ScreenWidth = 0;
+        auto ScreenHeight = 0;
+        SDK::Interfaces::EngineToClient()->GetScreenSize( ScreenWidth , ScreenHeight );
+
+        const float Width = static_cast<float>( ScreenWidth );
+        const float Height = static_cast<float>( ScreenHeight );
+
+        size_t VisibleCount = 0;
+        size_t Index = 0;
+
+#if defined( __AVX__ )
+        constexpr size_t SIMD_WIDTH = 8;
+        alignas( 64 ) float ClipX[SIMD_WIDTH]{};
+        alignas( 64 ) float ClipY[SIMD_WIDTH]{};
+
+        const __m256 One = _mm256_set1_ps( 1.0f );
+        const __m256 Half = _mm256_set1_ps( 0.5f );
+        const __m256 WidthVec = _mm256_set1_ps( Width );
+        const __m256 HeightVec = _mm256_set1_ps( Height );
+
+        for ( ; Index + SIMD_WIDTH <= Count; Index += SIMD_WIDTH )
+        {
+            for ( size_t i = 0; i < SIMD_WIDTH; ++i )
+            {
+                Vector3 Projected{};
+                const bool IsVisible = !ScreenTransform( pIn[Index + i] , Projected );
+                pVisible[Index + i] = IsVisible;
+
+                ClipX[i] = Projected.m_x;
+                ClipY[i] = Projected.m_y;
+            }
+
+            const __m256 X = _mm256_load_ps( ClipX );
+            const __m256 Y = _mm256_load_ps( ClipY );
+
+            const __m256 XNorm = _mm256_mul_ps( _mm256_add_ps( X , One ) , Half );
+            const __m256 YNorm = _mm256_mul_ps( _mm256_add_ps( Y , One ) , Half );
+
+#if defined( __FMA__ )
+            const __m256 ScreenX = _mm256_fmadd_ps( XNorm , WidthVec , _mm256_setzero_ps() );
+            const __m256 ScreenYNorm = _mm256_fmadd_ps( YNorm , HeightVec , _mm256_setzero_ps() );
+#else
+            const __m256 ScreenX = _mm256_mul_ps( XNorm , WidthVec );
+            const __m256 ScreenYNorm = _mm256_mul_ps( YNorm , HeightVec );
+#endif
+            const __m256 ScreenY = _mm256_sub_ps( HeightVec , ScreenYNorm );
+
+            _mm256_store_ps( ClipX , ScreenX );
+            _mm256_store_ps( ClipY , ScreenY );
+
+            for ( size_t i = 0; i < SIMD_WIDTH; ++i )
+            {
+                pOut[Index + i].x = ClipX[i];
+                pOut[Index + i].y = ClipY[i];
+
+                if ( pVisible[Index + i] )
+                    ++VisibleCount;
+            }
+        }
+#endif
+
+        for ( ; Index < Count; ++Index )
+        {
+            Vector3 Projected{};
+            const bool IsVisible = !ScreenTransform( pIn[Index] , Projected );
+
+            pVisible[Index] = IsVisible;
+            pOut[Index].x = ( ( Projected.m_x + 1.0f ) * 0.5f ) * Width;
+            pOut[Index].y = Height - ( ( ( Projected.m_y + 1.0f ) * 0.5f ) * Height );
+
+            if ( IsVisible )
+                ++VisibleCount;
+        }
+
+        return VisibleCount;
+    }
+
+    auto NormalizeVectorFast( Vector3& Vec ) -> void
+    {
+        const float LengthSq = Vec.m_x * Vec.m_x + Vec.m_y * Vec.m_y + Vec.m_z * Vec.m_z;
+
+        if ( LengthSq <= FLT_EPSILON )
+            return;
+
+#if defined( __AVX512F__ )
+        const __m128 LengthSqVec = _mm_set_ss( LengthSq );
+        const __m128 InvLenVec = _mm_rsqrt14_ss( LengthSqVec );
+        const float InvLen = _mm_cvtss_f32( InvLenVec );
+#else
+        const float InvLen = 1.0f / std::sqrt( LengthSq );
+#endif
+
+        Vec.m_x *= InvLen;
+        Vec.m_y *= InvLen;
+        Vec.m_z *= InvLen;
     }
 
     auto AngleNormalize( float angle ) -> float

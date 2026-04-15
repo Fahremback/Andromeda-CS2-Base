@@ -360,6 +360,9 @@
     <ClCompile Include="Andromeda-CS2-Base\Common\MemoryEngine.cpp">
       <Filter>Andromeda-CS2-Base\Common</Filter>
     </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\Common\LinearArena.cpp">
+      <Filter>Andromeda-CS2-Base\Common</Filter>
+    </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\Common\Helpers\ModuleLoaderHelper.cpp">
       <Filter>Andromeda-CS2-Base\Common\Helpers</Filter>
     </ClCompile>
@@ -795,6 +798,9 @@
       <Filter>Andromeda-CS2-Base\Common</Filter>
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\Common\MemoryEngine.hpp">
+      <Filter>Andromeda-CS2-Base\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\Common\LinearArena.hpp">
       <Filter>Andromeda-CS2-Base\Common</Filter>
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\Common\Helpers\ModuleLoaderHelper.hpp">
