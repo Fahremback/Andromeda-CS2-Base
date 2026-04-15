@@ -1,135 +1,145 @@
 #include "CRenderStackSystem.hpp"
 #include "CRender.hpp"
 
+#include <cstdarg>
+#include <cstdio>
+
 static CRenderStackSystem g_CRenderStackSystem{};
 
-auto CRenderObjectDrawLine::OnRender() -> void
+auto CRenderStackSystem::ReserveIfNeeded() -> void
 {
-	GetRender()->DrawLine( m_Start , m_End , m_Color , m_Thickness );
+	if ( m_UpdateBuffer.capacity() < g_DefaultReserve )
+		m_UpdateBuffer.reserve( g_DefaultReserve );
+
+	if ( m_BackBuffer.capacity() < g_DefaultReserve )
+		m_BackBuffer.reserve( g_DefaultReserve );
+
+	if ( m_RenderBuffer.capacity() < g_DefaultReserve )
+		m_RenderBuffer.reserve( g_DefaultReserve );
 }
 
-auto CRenderObjectDrawBox::OnRender() -> void
+auto CRenderStackSystem::PushCommand( const RenderCommand_t& Cmd ) -> void
 {
-	GetRender()->DrawBox( m_Min , m_Max , m_Color );
-}
-
-auto CRenderObjectDrawOutlineBox::OnRender() -> void
-{
-	GetRender()->DrawOutlineBox( m_Min , m_Max , m_Color );
-}
-
-auto CRenderObjectDrawCoalBox::OnRender() -> void
-{
-	GetRender()->DrawCoalBox( m_Min , m_Max , m_Color );
-}
-
-auto CRenderObjectDrawOutlineCoalBox::OnRender() -> void
-{
-	GetRender()->DrawOutlineCoalBox( m_Min , m_Max , m_Color );
-}
-
-auto CRenderObjectDrawFillBox::OnRender() -> void
-{
-	GetRender()->DrawFillBox( m_Min , m_Max , m_Color );
-}
-
-auto CRenderObjectDrawRectFilledMultiColor::OnRender() -> void
-{
-	GetRender()->DrawRectFilledMultiColor( m_Min , m_Max , m_Col_upr_left , m_Col_upr_right , m_Col_bot_right , m_Col_bot_left );
-}
-
-auto CRenderObjectDrawCircle::OnRender() -> void
-{
-	GetRender()->DrawCircle( m_Center , m_flRadius , m_Color );
-}
-
-auto CRenderObjectDrawCircleFilled::OnRender() -> void
-{
-	GetRender()->DrawCircleFilled( m_Center , m_flRadius , m_Color );
-}
-
-auto CRenderObjectDrawCircle3D::OnRender() -> void
-{
-	GetRender()->DrawCircle3D( m_Center , m_flRadius , m_Color );
-}
-
-auto CRenderObjectDrawTriangleFilled::OnRender() -> void
-{
-	GetRender()->DrawTriangleFilled( m_Center , m_pos1 , m_pos2 , m_Color );
-}
-
-auto CRenderObjectDrawString::OnRender() -> void
-{
-	m_pFont->DrawString( m_x , m_y , m_Color , m_Flags , "%s" , m_Text.c_str() );
+	std::scoped_lock lock( m_Lock );
+	ReserveIfNeeded();
+	m_UpdateBuffer.emplace_back( Cmd );
 }
 
 auto CRenderStackSystem::DrawLine( const ImVec2& Start , const ImVec2& End , const ImColor& Color , const float thickness ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawLine>( Start , End , Color , thickness ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_LINE;
+	Cmd.Pos0 = Start;
+	Cmd.Pos1 = End;
+	Cmd.Color = Color;
+	Cmd.Float0 = thickness;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawBox( const ImVec2& Min , const ImVec2& Max , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawBox>( Min , Max , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_BOX;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawOutlineBox( const ImVec2& Min , const ImVec2& Max , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawOutlineBox>( Min , Max , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_OUTLINE_BOX;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawCoalBox( const ImVec2& Min , const ImVec2& Max , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.push_back( std::make_shared<CRenderObjectDrawCoalBox>( Min , Max , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_COAL_BOX;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawOutlineCoalBox( const ImVec2& Min , const ImVec2& Max , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawOutlineCoalBox>( Min , Max , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_OUTLINE_COAL_BOX;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawFillBox( const ImVec2& Min , const ImVec2& Max , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawFillBox>( Min , Max , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_FILL_BOX;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawRectFilledMultiColor( const ImVec2& Min , const ImVec2& Max , const ImU32 col_upr_left , const ImU32 col_upr_right , const ImU32 col_bot_right , const ImU32 col_bot_left ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawRectFilledMultiColor>( Min , Max , col_upr_left , col_upr_right , col_bot_right , col_bot_left ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_RECT_FILLED_MULTI_COLOR;
+	Cmd.Pos0 = Min;
+	Cmd.Pos1 = Max;
+	Cmd.U320 = col_upr_left;
+	Cmd.U321 = col_upr_right;
+	Cmd.U322 = col_bot_right;
+	Cmd.U323 = col_bot_left;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawCircle( const ImVec2& Center , float radius , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawCircle>( Center , radius , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_CIRCLE;
+	Cmd.Pos0 = Center;
+	Cmd.Float0 = radius;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawCircleFilled( const ImVec2& Center , const float radius , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawCircleFilled>( Center , radius , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_CIRCLE_FILLED;
+	Cmd.Pos0 = Center;
+	Cmd.Float0 = radius;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawCircle3D( const Vector3& Center , float radius , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawCircle3D>( Center , radius , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_CIRCLE_3D;
+	Cmd.Pos3D = Center;
+	Cmd.Float0 = radius;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawTriangleFilled( const ImVec2& Center , const ImVec2& pos1 , const ImVec2& pos2 , const ImColor& Color ) -> void
 {
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawTriangleFilled>( Center , pos1 , pos2 , Color ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_TRIANGLE_FILLED;
+	Cmd.Pos0 = Center;
+	Cmd.Pos1 = pos1;
+	Cmd.Pos2 = pos2;
+	Cmd.Color = Color;
+	PushCommand( Cmd );
 }
 
-// TODO: SURIK std::format - kruto, ETO HUETA EBANAYA
 auto CRenderStackSystem::DrawString( CFont* pFont , const int X , const int Y , const int Flags , const ImColor& Color , const char* fmt , ... ) -> void
 {
 	char Buffer[g_BufferSize] = { 0 };
@@ -139,8 +149,15 @@ auto CRenderStackSystem::DrawString( CFont* pFont , const int X , const int Y , 
 	vsnprintf( Buffer , sizeof( Buffer ) , fmt , va_alist );
 	va_end( va_alist );
 
-	std::scoped_lock lock( m_Lock );
-	m_vecUpdateBuffer.emplace_back( std::make_shared<CRenderObjectDrawString>( pFont , X , Y , Flags , Color , Buffer ) );
+	RenderCommand_t Cmd{};
+	Cmd.Type = ERenderCommandType::DRAW_STRING;
+	Cmd.pFont = pFont;
+	Cmd.Int0 = X;
+	Cmd.Int1 = Y;
+	Cmd.Int2 = Flags;
+	Cmd.Color = Color;
+	std::snprintf( Cmd.Text.data() , Cmd.Text.size() , "%s" , Buffer );
+	PushCommand( Cmd );
 }
 
 auto CRenderStackSystem::DrawString( CFont* pFont , const ImVec2& Pos , const int Flags , const ImColor& Color , const char* fmt , ... ) -> void
@@ -158,35 +175,68 @@ auto CRenderStackSystem::DrawString( CFont* pFont , const ImVec2& Pos , const in
 auto CRenderStackSystem::OnClientOutput() -> void
 {
 	std::scoped_lock lock( m_Lock );
+	ReserveIfNeeded();
 
-	if ( m_vecUpdateBuffer.empty() )
+	m_BackBuffer.clear();
+	m_BackBuffer.swap( m_UpdateBuffer );
+	m_bRenderBufferReady.store( true , std::memory_order_release );
+}
+
+auto CRenderStackSystem::ExecuteCommand( const RenderCommand_t& Cmd ) -> void
+{
+	switch ( Cmd.Type )
 	{
-		// Nothing has been drawn on this frame
-		m_pSharedBuffer = std::make_shared<RenderObjectsVec_t>();
-		m_bSharedBufferReady = true;
-		return;
+		case ERenderCommandType::DRAW_LINE:
+			GetRender()->DrawLine( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color , Cmd.Float0 );
+			break;
+		case ERenderCommandType::DRAW_BOX:
+			GetRender()->DrawBox( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_OUTLINE_BOX:
+			GetRender()->DrawOutlineBox( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_COAL_BOX:
+			GetRender()->DrawCoalBox( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_OUTLINE_COAL_BOX:
+			GetRender()->DrawOutlineCoalBox( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_FILL_BOX:
+			GetRender()->DrawFillBox( Cmd.Pos0 , Cmd.Pos1 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_RECT_FILLED_MULTI_COLOR:
+			GetRender()->DrawRectFilledMultiColor( Cmd.Pos0 , Cmd.Pos1 , Cmd.U320 , Cmd.U321 , Cmd.U322 , Cmd.U323 );
+			break;
+		case ERenderCommandType::DRAW_CIRCLE:
+			GetRender()->DrawCircle( Cmd.Pos0 , Cmd.Float0 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_CIRCLE_FILLED:
+			GetRender()->DrawCircleFilled( Cmd.Pos0 , Cmd.Float0 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_CIRCLE_3D:
+			GetRender()->DrawCircle3D( Cmd.Pos3D , Cmd.Float0 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_TRIANGLE_FILLED:
+			GetRender()->DrawTriangleFilled( Cmd.Pos0 , Cmd.Pos1 , Cmd.Pos2 , Cmd.Color );
+			break;
+		case ERenderCommandType::DRAW_STRING:
+			if ( Cmd.pFont )
+				Cmd.pFont->DrawString( Cmd.Int0 , Cmd.Int1 , Cmd.Color , Cmd.Int2 , "%s" , Cmd.Text.data() );
+			break;
 	}
-
-	m_pSharedBuffer = std::make_shared<RenderObjectsVec_t>( std::move( m_vecUpdateBuffer ) );
-	m_bSharedBufferReady = true;
 }
 
 auto CRenderStackSystem::OnRenderStack() -> void
 {
-	if ( m_bSharedBufferReady.exchange( false ) )
+	if ( m_bRenderBufferReady.exchange( false , std::memory_order_acq_rel ) )
 	{
-		m_pRenderBuffer = std::move( m_pSharedBuffer.load() );
+		std::scoped_lock lock( m_Lock );
+		m_RenderBuffer.clear();
+		m_RenderBuffer.swap( m_BackBuffer );
 	}
 
-	if ( m_pRenderBuffer )
-	{
-		auto& bufferCopy = *m_pRenderBuffer;
-
-		for ( auto& order : bufferCopy )
-		{
-			order->OnRender();
-		}
-	}
+	for ( const auto& Cmd : m_RenderBuffer )
+		ExecuteCommand( Cmd );
 }
 
 auto GetRenderStackSystem() -> CRenderStackSystem*

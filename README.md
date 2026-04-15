@@ -42,6 +42,7 @@
 ## DX11 render baseline
 - Backbuffer RTV creation now uses inferred descriptor (`CreateRenderTargetView(..., nullptr, ...)`) for better compatibility with swapchain formats.
 - Present path now backs up and restores OM render targets + viewport state around ImGui rendering to reduce game pipeline interference.
+- Render stack migrated from `shared_ptr` polymorphic draw objects to a compact command-buffer model with double buffering and atomic-ready signaling.
 
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>
