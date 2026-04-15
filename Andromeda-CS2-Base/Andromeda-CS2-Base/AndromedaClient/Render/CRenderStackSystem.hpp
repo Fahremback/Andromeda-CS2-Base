@@ -92,7 +92,7 @@ private:
 	Lock_t m_Lock;
 
 private:
-	static constexpr auto g_BufferSize = 64;
+	static constexpr auto g_BufferSize = 256;
 	static constexpr size_t g_DefaultReserve = 4096;
 };
 

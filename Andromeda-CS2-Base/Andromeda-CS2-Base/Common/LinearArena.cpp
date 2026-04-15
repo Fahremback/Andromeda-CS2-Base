@@ -73,10 +73,9 @@ auto CLinearArena::Allocate( size_t Size , size_t Alignment ) -> void*
 
 	const auto RequestedAlignment = std::max( Alignment , CACHELINE_ALIGNMENT );
 	const auto AlignedOffset = AlignUp( m_Offset , RequestedAlignment );
-	const auto NextOffset = AlignedOffset + Size;
-
-	if ( NextOffset > m_Capacity )
+	if ( AlignedOffset > m_Capacity || Size > ( m_Capacity - AlignedOffset ) )
 		return nullptr;
+	const auto NextOffset = AlignedOffset + Size;
 
 	auto* pOut = m_pBuffer + AlignedOffset;
 	m_Offset = NextOffset;

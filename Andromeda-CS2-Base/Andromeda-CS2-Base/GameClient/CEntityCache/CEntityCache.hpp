@@ -3,6 +3,7 @@
 #include <Common/Common.hpp>
 
 #include <array>
+#include <cassert>
 
 #include <CS2/SDK/Types/CHandle.hpp>
 #include <CS2/SDK/Types/CEntityData.hpp>
@@ -55,41 +56,49 @@ public:
 
     inline auto GetHandle( size_t index ) const -> const CHandle&
     {
+        assert( index < m_Count );
         return m_Handles[index];
     }
 
     inline auto GetType( size_t index ) const -> CachedEntity_t::Type
     {
+        assert( index < m_Count );
         return m_Types[index];
     }
 
     inline auto GetBBox( size_t index ) const -> const Rect_t&
     {
+        assert( index < m_Count );
         return m_BBoxes[index];
     }
 
     inline auto ShouldDraw( size_t index ) const -> bool
     {
+        assert( index < m_Count );
         return m_Draw[index];
     }
 
     inline auto IsVisible( size_t index ) const -> bool
     {
+        assert( index < m_Count );
         return m_Visible[index];
     }
 
     inline auto SetVisible( size_t index , bool value ) -> void
     {
+        assert( index < m_Count );
         m_Visible[index] = value;
     }
 
     inline auto SetDraw( size_t index , bool value ) -> void
     {
+        assert( index < m_Count );
         m_Draw[index] = value;
     }
 
     inline auto SetBBox( size_t index , const Rect_t& value ) -> void
     {
+        assert( index < m_Count );
         m_BBoxes[index] = value;
     }
 

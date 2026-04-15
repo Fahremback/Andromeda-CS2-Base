@@ -39,6 +39,7 @@ void CEntityCache::OnAddEntity( CEntityInstance* pInst , CHandle handle )
 
 void CEntityCache::OnRemoveEntity( CEntityInstance* pInst , CHandle handle )
 {
+	( void )pInst;
 	std::scoped_lock lock( m_Lock );
 
 	auto it = std::find( m_Handles.begin() , m_Handles.begin() + m_Count , handle );
