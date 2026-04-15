@@ -1,0 +1,77 @@
+#pragma once
+
+#include "../../CS2/SDK/Math/Vector3.hpp"
+#include <cstdint>
+#include <cstddef>
+
+class CPhysicsCriticalPhases
+{
+public:
+    struct alignas(64) PenetrationRay
+    {
+        Vector3 start{ 0, 0, 0 };
+        Vector3 direction{ 0, 0, 1 };
+        float maxDistance = 0.0f;
+    };
+
+    struct alignas(64) MaterialLayer
+    {
+        float entryDistance = 0.0f;
+        float exitDistance = 0.0f;
+        float density = 1.0f;
+        float resistance = 1.0f;
+        uint32_t flags = 0;
+    };
+
+    struct alignas(64) PenetrationResult
+    {
+        float remainingEnergy = 0.0f;
+        float accumulatedThickness = 0.0f;
+        size_t processedLayers = 0;
+        bool reachedTarget = false;
+    };
+
+    struct alignas(64) SensorMatrixState
+    {
+        Vector3 collisionAngles{ 0, 0, 0 };
+        Vector3 renderAngles{ 0, 0, 0 };
+        Vector3 collisionOrigin{ 0, 0, 0 };
+        Vector3 renderOrigin{ 0, 0, 0 };
+    };
+
+    struct alignas(64) KinematicOscillationState
+    {
+        float lbyAccumulator = 0.0f;
+        float zOscillationPhase = 0.0f;
+        float lastTickDt = 0.0f;
+    };
+
+    class Phase2
+    {
+    public:
+        static bool Volumetric_Penetration_Solver(const PenetrationRay& ray,
+                                                  const MaterialLayer* layers,
+                                                  size_t layerCount,
+                                                  float initialEnergy,
+                                                  float minimumThreshold,
+                                                  PenetrationResult& outResult);
+
+        static float Material_Density_Energy_Loss(float energyIn, float density, float thickness, float resistance);
+        static bool Minimum_Kinetic_Threshold(float remainingEnergy, float minimumThreshold);
+        static bool Non_Linear_Phase_Bypass(uint32_t layerFlags);
+        static float Bisection_Thickness_Check(float entryDistance, float exitDistance, uint32_t maxIterations);
+    };
+
+    class Phase4
+    {
+    public:
+        static void Asynchronous_Mesh_Decoupling(SensorMatrixState& ioState, float decouplingStrength, float dt);
+        static void Zenith_Nadir_Gimbal_Lock(SensorMatrixState& ioState, bool lockToZenith);
+        static void Stochastic_Yaw_Dispersion(SensorMatrixState& ioState, uint32_t& rngState, float jitterAmplitude);
+        static void Lower_Body_Kinematic_Break(SensorMatrixState& ioState, KinematicOscillationState& ioKinematics, float dt, float breakRateDeg);
+        static void High_Frequency_Z_Axis_Oscillation(SensorMatrixState& ioState, KinematicOscillationState& ioKinematics, float amplitude, float frequencyHz, float dt);
+        static void Micro_Movement_State_Preservation(SensorMatrixState& ioState, float epsilonStep);
+        static void Inertial_Damping_Override(Vector3& ioVelocity);
+    };
+};
+
