@@ -1,4 +1,5 @@
 #include "CL_VisibleCheck.hpp"
+#include <array>
 
 #include <CS2/SDK/Types/CEntityData.hpp>
 
@@ -23,28 +24,23 @@ auto CL_VisibleCheck::IsPlayerPawnVisible( C_CSPlayerPawn* pC_CSPlayerPawn ) -> 
 
 	if ( pC_CSPlayerPawn && pC_CSPlayerPawn->IsPlayerPawn() )
 	{
-		bool IsBoneVisible = false;
+		std::array<Vector3 , 6> BonePositions{};
 
-		for ( const auto& BoneName : g_AllTraceVisibleCheckBones )
+		if ( GetCL_Bones()->GetBonePositionsByName( pC_CSPlayerPawn , g_AllTraceVisibleCheckBones.data() , g_AllTraceVisibleCheckBones.size() , BonePositions.data() ) )
 		{
-			const Vector3 BonePos = GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , BoneName.c_str() );
-
-			if ( !BonePos.IsZero() )
+			for ( const auto& BonePos : BonePositions )
 			{
-				const auto* pTracedEntity = GetCL_Trace()->TraceToEntityEndPos( &BonePos );
-
-				if ( pTracedEntity == pC_CSPlayerPawn )
-					IsBoneVisible = true;
-				else
+				if ( BonePos.IsZero() )
 					continue;
-			}
-			else
-			{
-				IsBoneVisible = false;
+
+				const auto* pTracedEntity = GetCL_Trace()->TraceToEntityEndPos( &BonePos );
+				if ( pTracedEntity == pC_CSPlayerPawn )
+				{
+					Visible = true;
+					break;
+				}
 			}
 		}
-
-		Visible = IsBoneVisible;
 	}
 
 	return Visible;

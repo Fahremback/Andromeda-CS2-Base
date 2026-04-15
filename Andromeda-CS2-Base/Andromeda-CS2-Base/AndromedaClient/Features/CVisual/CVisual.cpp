@@ -1,4 +1,5 @@
 #include "CVisual.hpp"
+#include <array>
 
 #include <CS2/SDK/SDK.hpp>
 #include <CS2/SDK/Interface/IEngineToClient.hpp>
@@ -75,8 +76,6 @@ auto CVisual::OnRenderPlayerEsp( CCSPlayerController* pCCSPlayerController , con
 
 	max.x = std::ceilf( max.x );
 	max.y = std::ceilf( max.y );
-
-	std::vector<std::string> PlayerItemIconList;
 
 	auto Draw = false;
 
@@ -256,6 +255,7 @@ auto CVisual::OnCreateMove() -> void
 		return;
 
 	const auto CachedVec = GetEntityCache()->GetCachedEntity();
+	std::scoped_lock Lock( GetEntityCache()->GetLock() );
 
 	for ( auto& CachedEntity : *CachedVec )
 	{
@@ -354,46 +354,84 @@ auto CVisual::DrawBoneESP( C_CSPlayerPawn* pC_CSPlayerPawn , const bool bVisible
 	// Bone connections structure for CS2 skeleton
 	struct BoneConnection_t
 	{
-		const char* szFrom;
-		const char* szTo;
+		size_t nFrom;
+		size_t nTo;
 	};
 
-	static const BoneConnection_t BoneConnections[] =
+	enum EBoneIndex_t : size_t
+	{
+		BONE_HEAD = 0,
+		BONE_NECK,
+		BONE_SPINE_1,
+		BONE_SPINE_2,
+		BONE_SPINE_3,
+		BONE_PELVIS,
+		BONE_CLAVICLE_L,
+		BONE_ARM_UPPER_L,
+		BONE_ARM_LOWER_L,
+		BONE_HAND_L,
+		BONE_CLAVICLE_R,
+		BONE_ARM_UPPER_R,
+		BONE_ARM_LOWER_R,
+		BONE_HAND_R,
+		BONE_LEG_UPPER_L,
+		BONE_LEG_LOWER_L,
+		BONE_ANKLE_L,
+		BONE_LEG_UPPER_R,
+		BONE_LEG_LOWER_R,
+		BONE_ANKLE_R,
+		BONE_COUNT
+	};
+
+	static const std::array<const char* , BONE_COUNT> RequiredBones =
+	{
+		"head_0", "neck_0", "spine_1", "spine_2", "spine_3", "pelvis",
+		"clavicle_l", "arm_upper_l", "arm_lower_l", "hand_l",
+		"clavicle_r", "arm_upper_r", "arm_lower_r", "hand_r",
+		"leg_upper_l", "leg_lower_l", "ankle_l",
+		"leg_upper_r", "leg_lower_r", "ankle_r"
+	};
+
+	static const std::array<BoneConnection_t , 19> BoneConnections =
 	{
 		// Head to spine chain
-		{ "head_0" , "neck_0" },
-		{ "neck_0" , "spine_1" },
-		{ "spine_1" , "spine_2" },
-		{ "spine_2" , "spine_3" },
-		{ "spine_3" , "pelvis" },
+		{ BONE_HEAD , BONE_NECK },
+		{ BONE_NECK , BONE_SPINE_1 },
+		{ BONE_SPINE_1 , BONE_SPINE_2 },
+		{ BONE_SPINE_2 , BONE_SPINE_3 },
+		{ BONE_SPINE_3 , BONE_PELVIS },
 
 		// Left arm
-		{ "neck_0" , "clavicle_l" },
-		{ "clavicle_l" , "arm_upper_l" },
-		{ "arm_upper_l" , "arm_lower_l" },
-		{ "arm_lower_l" , "hand_l" },
+		{ BONE_NECK , BONE_CLAVICLE_L },
+		{ BONE_CLAVICLE_L , BONE_ARM_UPPER_L },
+		{ BONE_ARM_UPPER_L , BONE_ARM_LOWER_L },
+		{ BONE_ARM_LOWER_L , BONE_HAND_L },
 
 		// Right arm
-		{ "neck_0" , "clavicle_r" },
-		{ "clavicle_r" , "arm_upper_r" },
-		{ "arm_upper_r" , "arm_lower_r" },
-		{ "arm_lower_r" , "hand_r" },
+		{ BONE_NECK , BONE_CLAVICLE_R },
+		{ BONE_CLAVICLE_R , BONE_ARM_UPPER_R },
+		{ BONE_ARM_UPPER_R , BONE_ARM_LOWER_R },
+		{ BONE_ARM_LOWER_R , BONE_HAND_R },
 
 		// Left leg
-		{ "pelvis" , "leg_upper_l" },
-		{ "leg_upper_l" , "leg_lower_l" },
-		{ "leg_lower_l" , "ankle_l" },
+		{ BONE_PELVIS , BONE_LEG_UPPER_L },
+		{ BONE_LEG_UPPER_L , BONE_LEG_LOWER_L },
+		{ BONE_LEG_LOWER_L , BONE_ANKLE_L },
 
 		// Right leg
-		{ "pelvis" , "leg_upper_r" },
-		{ "leg_upper_r" , "leg_lower_r" },
-		{ "leg_lower_r" , "ankle_r" },
+		{ BONE_PELVIS , BONE_LEG_UPPER_R },
+		{ BONE_LEG_UPPER_R , BONE_LEG_LOWER_R },
+		{ BONE_LEG_LOWER_R , BONE_ANKLE_R },
 	};
+
+	std::array<Vector3 , BONE_COUNT> BonePositions{};
+	if ( !GetCL_Bones()->GetBonePositionsByName( pC_CSPlayerPawn , RequiredBones.data() , RequiredBones.size() , BonePositions.data() ) )
+		return;
 
 	for ( const auto& Connection : BoneConnections )
 	{
-		const Vector3 FromBone = GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szFrom );
-		const Vector3 ToBone = GetCL_Bones()->GetBonePositionByName( pC_CSPlayerPawn , Connection.szTo );
+		const Vector3& FromBone = BonePositions[Connection.nFrom];
+		const Vector3& ToBone = BonePositions[Connection.nTo];
 
 		if ( FromBone.IsZero() || ToBone.IsZero() )
 			continue;

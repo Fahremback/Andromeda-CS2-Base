@@ -38,7 +38,7 @@ class CEntityCache final : public IEntityCache
 {
 public:
     using CachedEntityVec_t = std::vector<CachedEntity_t>;
-    using Lock_t = std::recursive_mutex;
+    using Lock_t = std::mutex;
 
 public:
     virtual void OnAddEntity( CEntityInstance* pInst , CHandle handle ) override;
