@@ -44,15 +44,7 @@ void CEntityCache::OnRemoveEntity( CEntityInstance* pInst , CHandle handle )
 
 	if ( it != m_CachedEntity.end() )
 	{
-		it->m_bDraw = false;
-		it->m_Type = CachedEntity_t::UNKNOWN;
-
-		auto NewEnd = std::remove_if( m_CachedEntity.begin() , m_CachedEntity.end() , []( const CachedEntity_t& i )
-		{
-			return i.m_Type == CachedEntity_t::UNKNOWN;
-		} );
-
-		m_CachedEntity.erase( NewEnd , m_CachedEntity.end() );
+		m_CachedEntity.erase( it );
 	}
 }
 
