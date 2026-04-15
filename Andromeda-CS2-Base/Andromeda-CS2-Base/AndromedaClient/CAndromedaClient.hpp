@@ -4,6 +4,7 @@
 
 #include <CS2/SDK/Types/CHandle.hpp>
 #include <CS2/SDK/Math/Vector3.hpp>
+#include <atomic>
 
 class IGameEvent;
 class CEntityInstance;
@@ -35,6 +36,10 @@ public:
 	virtual void OnRender() override;
 	virtual void OnClientOutput() override;
 	virtual void OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) override;
+
+private:
+	std::atomic_bool m_Initialized = false;
+	std::atomic_bool m_InGame = false;
 };
 
 auto GetAndromedaClient() -> CAndromedaClient*;

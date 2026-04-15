@@ -70,6 +70,23 @@ auto CDllLauncher::OnDestroy() -> void
 
 auto WINAPI CDllLauncher::StartCheatTheard( LPVOID lpThreadParameter ) -> DWORD
 {
+	// Startup performance budget targets (for future tuning):
+	// - Hook bootstrap: < 5ms
+	// - SDK loader: < 5ms
+	// - Total startup: < 20ms
+	LARGE_INTEGER PerfFreq{};
+	QueryPerformanceFrequency( &PerfFreq );
+
+	auto MeasureMs = [&PerfFreq]( auto&& Fn ) -> double
+	{
+		LARGE_INTEGER Start{};
+		LARGE_INTEGER End{};
+		QueryPerformanceCounter( &Start );
+		Fn();
+		QueryPerformanceCounter( &End );
+		return static_cast<double>( End.QuadPart - Start.QuadPart ) * 1000.0 / static_cast<double>( PerfFreq.QuadPart );
+	};
+
 	GetDevLog()->Init();
 	GetCrashLog()->InitVectorExceptionHandler();
 
@@ -83,17 +100,33 @@ auto WINAPI CDllLauncher::StartCheatTheard( LPVOID lpThreadParameter ) -> DWORD
 	DEV_LOG( "[+] StartCheatThread: %s\n" , ansi_to_utf8( GetDllDir() ).c_str() );
 #endif
 
-	if ( !GetHook_Loader()->InitalizeMH() )
+	auto MinHookInitOk = false;
+	const auto MinHookInitMs = MeasureMs( [&]()
+	{
+		MinHookInitOk = GetHook_Loader()->InitalizeMH();
+	} );
+
+	if ( !MinHookInitOk )
 	{
 		DEV_LOG( "[error] Hook_Loader::InitalizeMH\n" );
 		return 0;
 	}
 
-	if ( !GetHook_Loader()->InstallFirstHook() )
+	DEV_LOG( "[perf] MinHook init: %.3f ms\n" , MinHookInitMs );
+
+	auto FirstHookOk = false;
+	const auto FirstHookMs = MeasureMs( [&]()
+	{
+		FirstHookOk = GetHook_Loader()->InstallFirstHook();
+	} );
+
+	if ( !FirstHookOk )
 	{
 		DEV_LOG( "[error] Hook_Loader::InstallFirstHook\n" );
 		return 0;
 	}
+
+	DEV_LOG( "[perf] First hook stage: %.3f ms\n" , FirstHookMs );
 
 	if ( !GetFunctionList()->OnInit() )
 	{
@@ -101,17 +134,33 @@ auto WINAPI CDllLauncher::StartCheatTheard( LPVOID lpThreadParameter ) -> DWORD
 		return 0;
 	}
 
-	if ( !GetSDK_Loader()->LoadSDK() )
+	auto SDKLoadOk = false;
+	const auto SDKLoadMs = MeasureMs( [&]()
+	{
+		SDKLoadOk = GetSDK_Loader()->LoadSDK();
+	} );
+
+	if ( !SDKLoadOk )
 	{
 		DEV_LOG( "[error] CSDK_Loader::LoadSDK\n" );
 		return 0;
 	}
 
-	if ( !GetHook_Loader()->InstallSecondHook() )
+	DEV_LOG( "[perf] SDK load stage: %.3f ms\n" , SDKLoadMs );
+
+	auto SecondHookOk = false;
+	const auto SecondHookMs = MeasureMs( [&]()
+	{
+		SecondHookOk = GetHook_Loader()->InstallSecondHook();
+	} );
+
+	if ( !SecondHookOk )
 	{
 		DEV_LOG( "[error] Hook_Loader::InstallSecondHook\n" );
 		return 0;
 	}
+
+	DEV_LOG( "[perf] Second hook stage: %.3f ms\n" , SecondHookMs );
 
 	GetAndromedaClient()->OnInit();
 

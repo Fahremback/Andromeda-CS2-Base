@@ -34,6 +34,11 @@
 - FMA path enabled for vector post-transform multiply-add where available.
 - Fast vector normalization helper using rsqrt14 path on AVX-512 capable builds.
 
+## Runtime pipeline/concurrency baseline
+- Startup stages now measured with `QueryPerformanceCounter` and logged (`[perf] ... ms`).
+- `CAndromedaClient` core state uses `std::atomic_bool` with acquire/release semantics for lightweight cross-thread visibility.
+- Render path now snapshots entity cache metadata from a short lock window into arena memory, then renders lock-free from the snapshot.
+
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>
 [Powered by Vermillion Hack](https://vermillion-hack.ru/)

@@ -24,33 +24,60 @@ auto CVisual::OnRender() -> void
 		return;
 
 	auto* pEntityCache = GetEntityCache();
-	std::scoped_lock Lock( pEntityCache->GetLock() );
 
-	const auto Count = pEntityCache->GetCount();
+	struct CacheRenderEntry_t
+	{
+		CHandle Handle = { INVALID_EHANDLE_INDEX };
+		CachedEntity_t::Type Type = CachedEntity_t::UNKNOWN;
+		Rect_t BBox = { 0.f , 0.f , 0.f , 0.f };
+		bool Draw = false;
+		bool Visible = false;
+	};
+
+	auto* pSnapshot = GetLinearArena()->AllocateArray<CacheRenderEntry_t>( CEntityCache::MAX_CACHED_ENTITIES );
+
+	if ( !pSnapshot )
+		return;
+
+	size_t Count = 0;
+
+	{
+		std::scoped_lock Lock( pEntityCache->GetLock() );
+		Count = pEntityCache->GetCount();
+
+		for ( size_t i = 0; i < Count; ++i )
+		{
+			pSnapshot[i].Handle = pEntityCache->GetHandle( i );
+			pSnapshot[i].Type = pEntityCache->GetType( i );
+			pSnapshot[i].BBox = pEntityCache->GetBBox( i );
+			pSnapshot[i].Draw = pEntityCache->ShouldDraw( i );
+			pSnapshot[i].Visible = pEntityCache->IsVisible( i );
+		}
+	}
 
 	for ( size_t i = 0; i < Count; ++i )
 	{
 		if ( i + 1 < Count )
-			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+			GetLinearArena()->PrefetchRead( &pSnapshot[i + 1] );
 
-		auto pEntity = pEntityCache->GetHandle( i ).Get();
+		auto pEntity = pSnapshot[i].Handle.Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != pEntityCache->GetHandle( i ) )
+		if ( hEntity != pSnapshot[i].Handle )
 			continue;
 
-		switch ( pEntityCache->GetType( i ) )
+		switch ( pSnapshot[i].Type )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
 				auto* pCCSPlayerController = reinterpret_cast<CCSPlayerController*>( pEntity );
 
-				if ( pEntityCache->ShouldDraw( i ) )
-					OnRenderPlayerEsp( pCCSPlayerController , pEntityCache->GetBBox( i ) , pEntityCache->IsVisible( i ) );
+				if ( pSnapshot[i].Draw )
+					OnRenderPlayerEsp( pCCSPlayerController , pSnapshot[i].BBox , pSnapshot[i].Visible );
 			}
 			break;
 		}

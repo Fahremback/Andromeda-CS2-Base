@@ -19,7 +19,7 @@ static CAndromedaClient g_CAndromedaClient{};
 
 auto CAndromedaClient::OnInit() -> void
 {
-
+	m_Initialized.store( true , std::memory_order_release );
 }
 
 auto CAndromedaClient::OnFrameStageNotify( int FrameStage ) -> void
@@ -44,13 +44,16 @@ auto CAndromedaClient::OnRemoveEntity( CEntityInstance* pInst , CHandle handle )
 
 auto CAndromedaClient::OnRender() -> void
 {
+	if ( !m_Initialized.load( std::memory_order_acquire ) )
+		return;
+
 	if ( GetAndromedaGUI()->IsVisible() )
 		GetAndromedaMenu()->OnRenderMenu();
 
 	GetFontManager()->FirstInitFonts();
 	GetFontManager()->m_VerdanaFont.DrawString( 1 , 1 , ImColor( 255 , 255 , 0 ) , FW1_LEFT , XorStr( CHEAT_NAME ) );
 
-	if ( SDK::Interfaces::EngineToClient()->IsInGame() )
+	if ( m_InGame.load( std::memory_order_acquire ) )
 	{
 		GetRenderStackSystem()->OnRenderStack();
 	}
@@ -58,7 +61,7 @@ auto CAndromedaClient::OnRender() -> void
 
 auto CAndromedaClient::OnClientOutput() -> void
 {
-	if ( SDK::Interfaces::EngineToClient()->IsInGame() )
+	if ( m_InGame.load( std::memory_order_acquire ) )
 	{
 		GetVisual()->OnClientOutput();
 	}
@@ -66,6 +69,7 @@ auto CAndromedaClient::OnClientOutput() -> void
 
 auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
 {
+	m_InGame.store( SDK::Interfaces::EngineToClient()->IsInGame() , std::memory_order_release );
 	GetLinearArena()->Reset();
 	GetVisual()->OnCreateMove();
 }
