@@ -1013,6 +1013,12 @@
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient</Filter>
     </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CAimbot.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsAligner.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Settings\CSettingsJson.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Settings</Filter>
     </ClInclude>
