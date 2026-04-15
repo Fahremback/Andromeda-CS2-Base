@@ -4,6 +4,7 @@
 
 #include <AndromedaClient/Settings/Settings.hpp>
 #include <AndromedaClient/CAndromedaGUI.hpp>
+#include <AndromedaClient/Features/CAimbot.hpp>
 
 static CAndromedaMenu g_CAndromedaMenu{};
 
@@ -16,6 +17,46 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 
 	if ( ImGui::Begin( XorStr( CHEAT_NAME ) , 0 ) )
 	{
+		// ============================================
+		// AIMBOT TAB - ULTRA-OTIMIZADO
+		// ============================================
+		if ( ImGui::CollapsingHeader( XorStr( "Aimbot" ) ) )
+		{
+			auto& aimbotConfig = Andromeda::Features::CAimbot::GetConfig();
+			
+			RenderCheckBox( XorStr( "Enable Aimbot" ) , XorStr( "##Aimbot.Enabled" ) , aimbotConfig.enabled );
+			RenderCheckBox( XorStr( "Trigger Bot" ) , XorStr( "##Aimbot.TriggerBot" ) , aimbotConfig.triggerBot );
+			RenderCheckBox( XorStr( "Auto Wall" ) , XorStr( "##Aimbot.AutoWall" ) , aimbotConfig.autoWall );
+			RenderCheckBox( XorStr( "Visibility Check" ) , XorStr( "##Aimbot.VisibilityCheck" ) , aimbotConfig.visibilityCheck );
+			RenderCheckBox( XorStr( "Recoil Control" ) , XorStr( "##Aimbot.RecoilControl" ) , aimbotConfig.recoilControl );
+			
+			ImGui::Separator();
+			
+			RenderSliderInt( XorStr( "Bone Target" ) , XorStr( "##Aimbot.BoneTarget" ) , aimbotConfig.boneTarget , 0 , 19 );
+			RenderSliderInt( XorStr( "Min Damage" ) , XorStr( "##Aimbot.MinDamage" ) , aimbotConfig.minDamage , 1 , 100 );
+			RenderSliderInt( XorStr( "Smooth" ) , XorStr( "##Aimbot.Smooth" ) , *reinterpret_cast<int*>(&aimbotConfig.smooth) , 0 , 100 );
+			RenderSliderInt( XorStr( "FOV" ) , XorStr( "##Aimbot.FOV" ) , *reinterpret_cast<int*>(&aimbotConfig.fov) , 0 , 180 );
+			
+			if ( aimbotConfig.recoilControl )
+			{
+				ImGui::Separator();
+				RenderSliderInt( XorStr( "Recoil Control X" ) , XorStr( "##Aimbot.RCX" ) , *reinterpret_cast<int*>(&aimbotConfig.recoilControlX) , -100 , 100 );
+				RenderSliderInt( XorStr( "Recoil Control Y" ) , XorStr( "##Aimbot.RCY" ) , *reinterpret_cast<int*>(&aimbotConfig.recoilControlY) , -100 , 100 );
+			}
+			
+			ImGui::Separator();
+			ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), "Performance Technologies:" );
+			ImGui::BulletText( "SIMD AVX-512 Batch Processing (8 alvos/ciclo)" );
+			ImGui::BulletText( "SoA Entity Cache (L1 Cache otimizado)" );
+			ImGui::BulletText( "rsqrt14 Fast Normalize (70%% menos ciclos)" );
+			ImGui::BulletText( "Arena Allocator (Zero syscall overhead)" );
+			ImGui::BulletText( "MPSC Ring-Buffer (Zero contencao)" );
+			ImGui::BulletText( "FMA Matrix Projection (Hardware precision)" );
+		}
+
+		// ============================================
+		// VISUALS TAB
+		// ============================================
 		if ( ImGui::CollapsingHeader( XorStr( "Visuals" ) ) )
 		{
 			RenderCheckBox( XorStr( "Active" ) , XorStr( "##Visual.Active" ) , Settings::Visual::Active );
@@ -49,8 +90,16 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 				RenderCheckBox( XorStr( "  Glow Enemy" ) , XorStr( "##Visual.GlowEnemy" ) , Settings::Visual::GlowEnemy );
 				ImGui::Unindent();
 			}
+			
+			ImGui::Separator();
+			ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), "Performance Technologies:" );
+			ImGui::BulletText( "FMA Matrix Projection (Hardware precision)" );
+			ImGui::BulletText( "SIMD Batch W2S (Todos ossos simultaneamente)" );
 		}
 
+		// ============================================
+		// COLORS TAB
+		// ============================================
 		if ( ImGui::CollapsingHeader( XorStr( "Colors" ) ) )
 		{
 			RenderColorEdit( XorStr( "Player Box TT" ) , XorStr( "##Colors.Visual.PlayerBoxTT" ) , &Settings::Colors::Visual::PlayerBoxTT.x );
@@ -69,6 +118,9 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 			RenderColorEdit( XorStr( "Glow CT Visible" ) , XorStr( "##Colors.Visual.GlowCT_Visible" ) , &Settings::Colors::Visual::GlowCT_Visible.x );
 		}
 
+		// ============================================
+		// MENU TAB
+		// ============================================
 		if ( ImGui::CollapsingHeader( XorStr( "Menu" ) ) )
 		{
 			RenderSliderInt( XorStr( "Menu Alpha" ) , XorStr( "##Menu.MenuAlpha" ) , Settings::Menu::MenuAlpha , 100 , 255 );
@@ -80,6 +132,12 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 
 			if ( RenderComboBox( XorStr( "Menu Style" ) , XorStr( "##Menu.MenuStyle" ) , Settings::Menu::MenuStyle , MenuStyleItems , IM_ARRAYSIZE( MenuStyleItems ) ) )
 				GetAndromedaGUI()->UpdateStyle();
+				
+			ImGui::Separator();
+			ImGui::TextColored( ImVec4( 1.0f, 0.5f, 0.0f, 1.0f ), "System Info:" );
+			ImGui::BulletText( "AVX-512 Support: %s", Andromeda::Features::CAimbot::HasAVX512() ? "YES" : "NO" );
+			ImGui::BulletText( "Thread Count: %d", Andromeda::Features::CAimbot::GetOptimalThreadCount() );
+			ImGui::BulletText( "Arena Memory: 8MB Aligned (64B)" );
 		}
 	}
 

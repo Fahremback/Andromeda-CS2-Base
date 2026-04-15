@@ -223,5 +223,19 @@ namespace Andromeda::Features
         
         // Debug via ring buffer
         static bool GetDebugInfo(FireCommand& cmd);
+        
+        // System info
+        static bool HasAVX512() 
+        { 
+            int cpuInfo[4];
+            __cpuidex(cpuInfo, 7, 0);
+            return (cpuInfo[1] & (1 << 16)) != 0; // AVX-512F bit
+        }
+        static int GetOptimalThreadCount()
+        {
+            SYSTEM_INFO sysInfo;
+            GetSystemInfo(&sysInfo);
+            return sysInfo.dwNumberOfProcessors;
+        }
     };
 }
