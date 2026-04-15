@@ -379,3 +379,83 @@ void CPhysicsCriticalPhases::Phase6::Predictive_State_Extrapolation(ExternalEnti
         _mm512_mask_storeu_ps(&entities.velZ[i], laneMask, velZ);
     }
 }
+
+size_t CPhysicsCriticalPhases::Phase5::Telemetry_Batch_Execution(TelemetryRingBuffer& queue, TelemetryCmd* outBatch, size_t outCapacity)
+{
+    if (!outBatch || outCapacity == 0 || queue.count == 0)
+        return 0;
+
+    const size_t batchCount = (std::min)(queue.count, outCapacity);
+    for (size_t i = 0; i < batchCount; ++i) {
+        outBatch[i] = queue.entries[queue.head];
+        queue.head = (queue.head + 1) % TelemetryRingBuffer::CAPACITY;
+    }
+    queue.count -= batchCount;
+    if (queue.count == 0)
+        queue.chokeStartTick = 0;
+    return batchCount;
+}
+
+bool CPhysicsCriticalPhases::Phase5::Packet_Accumulation_Choke(TelemetryRingBuffer& queue,
+                                                               const TelemetryCmd& cmd,
+                                                               uint32_t holdTicks,
+                                                               uint64_t currentTick)
+{
+    if (queue.count >= TelemetryRingBuffer::CAPACITY)
+        return false;
+
+    queue.entries[queue.tail] = cmd;
+    queue.tail = (queue.tail + 1) % TelemetryRingBuffer::CAPACITY;
+    ++queue.count;
+
+    if (queue.chokeStartTick == 0)
+        queue.chokeStartTick = currentTick;
+
+    const uint64_t heldTicks = currentTick - queue.chokeStartTick;
+    if (heldTicks < holdTicks)
+        return false;
+
+    queue.chokeStartTick = 0;
+    return true;
+}
+
+void CPhysicsCriticalPhases::Phase5::Command_Sequence_Omission(TelemetryRingBuffer& queue, uint32_t omissionMask)
+{
+    if (queue.count == 0 || omissionMask == 0)
+        return;
+
+    size_t cursor = queue.head;
+    for (size_t i = 0; i < queue.count; ++i) {
+        queue.entries[cursor].flags &= ~omissionMask;
+        cursor = (cursor + 1) % TelemetryRingBuffer::CAPACITY;
+    }
+}
+
+void CPhysicsCriticalPhases::Phase5::Artificial_Latency_Padding(TelemetryRingBuffer& queue, uint64_t latencyUs)
+{
+    if (queue.count == 0 || latencyUs == 0)
+        return;
+
+    size_t cursor = queue.head;
+    for (size_t i = 0; i < queue.count; ++i) {
+        queue.entries[cursor].context.timestampUs += latencyUs;
+        cursor = (cursor + 1) % TelemetryRingBuffer::CAPACITY;
+    }
+}
+
+void CPhysicsCriticalPhases::Phase5::Time_Delta_Compression(TelemetryRingBuffer& queue,
+                                                             uint32_t subSteps,
+                                                             float compressionFactor)
+{
+    if (queue.count == 0)
+        return;
+
+    const float clampedFactor = (std::clamp)(compressionFactor, 0.01f, 1.0f);
+    const float stepScale = clampedFactor / static_cast<float>((std::max)(1u, subSteps));
+    size_t cursor = queue.head;
+    for (size_t i = 0; i < queue.count; ++i) {
+        FrameContext& context = queue.entries[cursor].context;
+        context.dt *= stepScale;
+        cursor = (cursor + 1) % TelemetryRingBuffer::CAPACITY;
+    }
+}

@@ -69,6 +69,31 @@ public:
         float desyncDelta = 0.0f;
     };
 
+    struct alignas(64) FrameContext
+    {
+        uint64_t tick = 0;
+        uint64_t timestampUs = 0;
+        float dt = 0.0f;
+    };
+
+    struct alignas(64) TelemetryCmd
+    {
+        uint64_t tick = 0;
+        uint32_t flags = 0;
+        float payload[4]{ 0, 0, 0, 0 };
+        FrameContext context{};
+    };
+
+    struct alignas(64) TelemetryRingBuffer
+    {
+        static constexpr size_t CAPACITY = 1024;
+        alignas(64) TelemetryCmd entries[CAPACITY];
+        size_t head = 0;
+        size_t tail = 0;
+        size_t count = 0;
+        uint64_t chokeStartTick = 0;
+    };
+
     class Phase2
     {
     public:
@@ -110,5 +135,15 @@ public:
         static float Animation_Overlay_Synchronization(float baseYaw, float leanLayer, float moveYawLayer);
         static float Asymmetrical_Desync_Correction(float bruteYaw, float overlayYaw, float leanLayerWeight);
         static void Predictive_State_Extrapolation(ExternalEntitySoA& entities, float missingDeltaTime, float gravityAcceleration);
+    };
+
+    class Phase5
+    {
+    public:
+        static size_t Telemetry_Batch_Execution(TelemetryRingBuffer& queue, TelemetryCmd* outBatch, size_t outCapacity);
+        static bool Packet_Accumulation_Choke(TelemetryRingBuffer& queue, const TelemetryCmd& cmd, uint32_t holdTicks, uint64_t currentTick);
+        static void Command_Sequence_Omission(TelemetryRingBuffer& queue, uint32_t omissionMask);
+        static void Artificial_Latency_Padding(TelemetryRingBuffer& queue, uint64_t latencyUs);
+        static void Time_Delta_Compression(TelemetryRingBuffer& queue, uint32_t subSteps, float compressionFactor);
     };
 };
