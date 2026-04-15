@@ -17,6 +17,15 @@
 
 static CL_Trace g_CL_Trace{};
 
+namespace
+{
+	struct SurfacePhysicsBridge
+	{
+		float density;
+		float penetrationResistance;
+	};
+}
+
 auto CL_Trace::TraceToBoneEntity( CCSGOInput* pInput , const QAngle* AngleCorrection , QAngle* ViewAngleCorrection ) -> std::pair<uint64_t , C_BaseEntity*>
 {
 	auto pLocalPlayerPawn = GetCL_Players()->GetLocalPlayerPawn();
@@ -82,6 +91,39 @@ auto CL_Trace::TraceToEntityEndPos( const Vector3* vEnd ) -> C_BaseEntity*
 	}
 
 	return nullptr;
+}
+
+auto CL_Trace::TracePhysicsSegment( const Vector3& vStart , const Vector3& vEnd , TracePhysicsSample& outSample ) -> bool
+{
+	outSample = {};
+
+	auto pLocalPlayerPawn = GetCL_Players()->GetLocalPlayerPawn();
+	if ( !pLocalPlayerPawn )
+		return false;
+
+	Ray_t Ray;
+	CGameTrace GameTrace;
+	CTraceFilter Filter( 0x1C1003 , pLocalPlayerPawn , 3 , 15 );
+
+	if ( !IGamePhysicsQuery_TraceShape( SDK::Pointers::CVPhys2World() , Ray , vStart , vEnd , &Filter , &GameTrace ) )
+		return false;
+
+	outSample.fraction = GameTrace.flFraction;
+	outSample.surfaceFlags = GameTrace.nSurfaceFlags;
+	outSample.didHit = GameTrace.DidHit();
+	outSample.hitPosition = GameTrace.vecEnd;
+	outSample.normal = GameTrace.vecNormal;
+
+	if ( GameTrace.pSurfaceProperties )
+	{
+		const auto* pBridge = reinterpret_cast<const SurfacePhysicsBridge*>( GameTrace.pSurfaceProperties );
+		if ( pBridge->density > 0.0f && pBridge->density < 1000.0f )
+			outSample.density = pBridge->density;
+		if ( pBridge->penetrationResistance > 0.0f && pBridge->penetrationResistance < 1000.0f )
+			outSample.penetrationResistance = pBridge->penetrationResistance;
+	}
+
+	return true;
 }
 
 auto GetCL_Trace() -> CL_Trace*

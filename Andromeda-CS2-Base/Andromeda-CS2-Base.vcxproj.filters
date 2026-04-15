@@ -393,6 +393,12 @@
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.cpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient</Filter>
     </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsCriticalPhases.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsSimulationMocks.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Settings\CSettingsJson.cpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Settings</Filter>
     </ClCompile>
@@ -1012,6 +1018,18 @@
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CAimbot.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsAligner.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsCriticalPhases.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CPhysicsSimulationMocks.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Settings\CSettingsJson.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Settings</Filter>

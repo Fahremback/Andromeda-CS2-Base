@@ -12,7 +12,15 @@
 
 #pragma warning(push)
 #pragma warning(disable : 4091)
-#include "cor.h"
+#if __has_include("cor.h")
+    #include "cor.h"
+#elif __has_include(<cor.h>)
+    #include <cor.h>
+#else
+struct IMetaDataDispenserEx;
+struct IMetaDataImport;
+struct IMetaDataAssemblyImport;
+#endif
 #include <atlbase.h>
 #pragma warning(pop)
 
