@@ -1,6 +1,6 @@
 #pragma once
 #include "../../Common/Common.hpp"
-#include "../CS2/SDK/Math/Vector3.hpp"
+#include "../../CS2/SDK/Math/Vector3.hpp"
 #include <cstdint>
 #include <atomic>
 
@@ -9,7 +9,7 @@
 // Tecnologias: SIMD AVX-512, SoA Cache, Arena Allocator, MPSC Ring-Buffer
 // ============================================================================
 
-namespace Andromeda::Features
+class CAimbot
 {
     // Configurações do Aimbot alinhadas para cache
     struct alignas(64) AimbotConfig
@@ -25,7 +25,7 @@ namespace Andromeda::Features
         bool recoilControl = false;
         float recoilControlY = 0.0f;
         float recoilControlX = 0.0f;
-    };
+};
 
     // Structure of Arrays para Entity Cache - Otimizado para L1 Cache
     struct alignas(64) SoAEntityCache
@@ -80,7 +80,7 @@ namespace Andromeda::Features
             
             entityCount++;
         }
-    };
+};
 
     // Comando de disparo thread-safe
     struct alignas(64) FireCommand
@@ -92,7 +92,7 @@ namespace Andromeda::Features
         float damage = 0;
         int64_t timestamp = 0;
         char padding[64 - sizeof(bool) - sizeof(Vector3)*2 - sizeof(uint32_t) - sizeof(float) - sizeof(int64_t)];
-    };
+};
 
     // MPSC Ring Buffer para comunicação lock-free entre threads
     class alignas(64) MPSCRingBuffer
@@ -147,7 +147,7 @@ namespace Andromeda::Features
         {
             return head.load(std::memory_order_acquire) == tail.load(std::memory_order_acquire);
         }
-    };
+};
 
     // Arena Allocator para cálculos temporários (8MB aligned)
     class alignas(64) ArenaAllocator
@@ -179,7 +179,7 @@ namespace Andromeda::Features
         {
             offset.store(0, std::memory_order_release);
         }
-    };
+};
 
     // Thread-Local Staging para evitar race conditions
     struct alignas(64) ThreadLocalStaging
@@ -188,7 +188,7 @@ namespace Andromeda::Features
         static thread_local ArenaAllocator localArena;
         static thread_local FireCommand pendingCommand;
         static thread_local bool isProcessing;
-    };
+};
 
     // Classe principal do Aimbot
     class CAimbot
@@ -233,5 +233,4 @@ namespace Andromeda::Features
             GetSystemInfo(&sysInfo);
             return sysInfo.dwNumberOfProcessors;
         }
-    };
-}
+};

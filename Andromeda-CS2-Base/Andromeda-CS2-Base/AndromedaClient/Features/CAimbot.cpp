@@ -5,13 +5,13 @@
 #include <chrono>
 
 // Definições dos thread-locals
-thread_local Andromeda::Features::SoAEntityCache Andromeda::Features::ThreadLocalStaging::localCache;
-thread_local Andromeda::Features::ArenaAllocator Andromeda::Features::ThreadLocalStaging::localArena;
-thread_local Andromeda::Features::FireCommand Andromeda::Features::ThreadLocalStaging::pendingCommand;
-thread_local bool Andromeda::Features::ThreadLocalStaging::isProcessing = false;
+thread_local SoAEntityCache ThreadLocalStaging::localCache;
+thread_local ArenaAllocator ThreadLocalStaging::localArena;
+thread_local FireCommand ThreadLocalStaging::pendingCommand;
+thread_local bool ThreadLocalStaging::isProcessing = false;
 
-namespace Andromeda::Features
-{
+
+
     void CAimbot::Initialize()
     {
         globalArena.Reset();
@@ -302,4 +302,4 @@ namespace Andromeda::Features
             fireQueue.TryPush(pendingCmd);
         }
     }
-}
+

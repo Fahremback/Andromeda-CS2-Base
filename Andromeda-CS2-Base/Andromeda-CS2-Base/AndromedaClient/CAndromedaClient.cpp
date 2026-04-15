@@ -19,7 +19,7 @@ static CAndromedaClient g_CAndromedaClient{};
 auto CAndromedaClient::OnInit() -> void
 {
 	// Inicializar Aimbot ultra-otimizado
-	Andromeda::Features::CAimbot::Initialize();
+	CAimbot::Initialize();
 }
 
 auto CAndromedaClient::OnFrameStageNotify( int FrameStage ) -> void
@@ -77,7 +77,7 @@ auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -
 	);
 	bool shouldShoot = false;
 	
-	Andromeda::Features::CAimbot::Execute(viewAngles, shouldShoot);
+	CAimbot::Execute(viewAngles, shouldShoot);
 	
 	// Aplicar ângulos calculados de volta ao protobuf
 	pUserCmd->cmd.mutable_view_angles()->set_x(viewAngles.m_x);

@@ -22,7 +22,7 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 		// ============================================
 		if ( ImGui::CollapsingHeader( XorStr( "Aimbot" ) ) )
 		{
-			auto& aimbotConfig = Andromeda::Features::CAimbot::GetConfig();
+			auto& aimbotConfig = CAimbot::GetConfig();
 			
 			RenderCheckBox( XorStr( "Enable Aimbot" ) , XorStr( "##Aimbot.Enabled" ) , aimbotConfig.enabled );
 			RenderCheckBox( XorStr( "Trigger Bot" ) , XorStr( "##Aimbot.TriggerBot" ) , aimbotConfig.triggerBot );
@@ -135,8 +135,8 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 				
 			ImGui::Separator();
 			ImGui::TextColored( ImVec4( 1.0f, 0.5f, 0.0f, 1.0f ), "System Info:" );
-			ImGui::BulletText( "AVX-512 Support: %s", Andromeda::Features::CAimbot::HasAVX512() ? "YES" : "NO" );
-			ImGui::BulletText( "Thread Count: %d", Andromeda::Features::CAimbot::GetOptimalThreadCount() );
+			ImGui::BulletText( "AVX-512 Support: %s", CAimbot::HasAVX512() ? "YES" : "NO" );
+			ImGui::BulletText( "Thread Count: %d", CAimbot::GetOptimalThreadCount() );
 			ImGui::BulletText( "Arena Memory: 8MB Aligned (64B)" );
 		}
 	}
