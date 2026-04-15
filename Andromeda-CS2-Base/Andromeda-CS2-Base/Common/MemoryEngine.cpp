@@ -151,16 +151,18 @@ auto FindPattern( const char* szPattern , uintptr_t StartAddr , uintptr_t EndAdd
 auto FindPattern( const char* szModuleName , const char* szPattern , uint32_t offset )->PVOID
 {
 	PVOID pFoundAddress = nullptr;
+	HMODULE hModule = nullptr;
 
-GetModuleStart:;
-
-	auto hModule = GetModuleHandleA( szModuleName );
-
-	if ( hModule == nullptr )
+	// Bound wait prevents permanent stalls on unexpected module load failures.
+	for ( size_t Attempt = 0; Attempt < 100 && !hModule; ++Attempt )
 	{
-		Sleep( 100 );
-		goto GetModuleStart;
+		hModule = GetModuleHandleA( szModuleName );
+		if ( !hModule )
+			Sleep( 100 );
 	}
+
+	if ( !hModule )
+		return nullptr;
 
 	auto pDosHeader = (PIMAGE_DOS_HEADER)hModule;
 

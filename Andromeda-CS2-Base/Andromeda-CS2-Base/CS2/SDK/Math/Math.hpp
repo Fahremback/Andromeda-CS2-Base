@@ -38,6 +38,7 @@ namespace Math
 	auto WorldToScreen( const Vector3& vIn , Vector3& vOut ) -> bool;
 	auto WorldToScreenBatch( const Vector3* pIn , ImVec2* pOut , bool* pVisible , size_t Count ) -> size_t;
 	auto NormalizeVectorFast( Vector3& Vec ) -> void;
+	auto UpdateWorldToProjectionMatrix( const VMatrix& WorldToProjection ) -> void;
 
 	auto AngleNormalize( float angle ) -> float;
 	auto NormalizeAngles( QAngle& QAngle ) -> void;

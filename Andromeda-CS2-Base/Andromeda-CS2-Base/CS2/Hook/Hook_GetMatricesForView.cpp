@@ -12,5 +12,8 @@ auto Hook_GetMatricesForView( void* rcx , void* view ,
 {
     GetMatricesForView_o( rcx , view , pWorldToView , pViewToProjection , pWorldToProjection , pWorldToPixels );
 
+    if ( pWorldToProjection )
+        Math::UpdateWorldToProjectionMatrix( *pWorldToProjection );
+
     GetVisual()->CalculateBoundingBoxes();
 }

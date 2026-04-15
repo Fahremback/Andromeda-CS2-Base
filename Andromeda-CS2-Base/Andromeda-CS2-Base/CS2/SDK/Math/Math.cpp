@@ -3,6 +3,7 @@
 #include <cfloat>
 #include <cmath>
 #include <immintrin.h>
+#include <mutex>
 #include <ImGui/imgui_internal.h>
 
 #include <CS2/SDK/SDK.hpp>
@@ -11,6 +12,20 @@
 
 namespace Math
 {
+    namespace
+    {
+        VMatrix g_WorldToProjection{};
+        std::mutex g_WorldToProjectionLock{};
+        bool g_HasWorldToProjection = false;
+    }
+
+    auto UpdateWorldToProjectionMatrix( const VMatrix& WorldToProjection ) -> void
+    {
+        std::scoped_lock Lock( g_WorldToProjectionLock );
+        g_WorldToProjection = WorldToProjection;
+        g_HasWorldToProjection = true;
+    }
+
     auto WorldToScreen( const Vector3& vIn , ImVec2& vOut ) -> bool
     {
         auto ret = false;
@@ -71,6 +86,15 @@ namespace Math
         if ( !pIn || !pOut || !pVisible || !Count )
             return 0;
 
+        VMatrix WorldToProjection{};
+        {
+            std::scoped_lock Lock( g_WorldToProjectionLock );
+            if ( !g_HasWorldToProjection )
+                return 0;
+
+            WorldToProjection = g_WorldToProjection;
+        }
+
         auto ScreenWidth = 0;
         auto ScreenHeight = 0;
         SDK::Interfaces::EngineToClient()->GetScreenSize( ScreenWidth , ScreenHeight );
@@ -83,31 +107,83 @@ namespace Math
 
 #if defined( __AVX__ )
         constexpr size_t SIMD_WIDTH = 8;
+        alignas( 64 ) float WorldX[SIMD_WIDTH]{};
+        alignas( 64 ) float WorldY[SIMD_WIDTH]{};
+        alignas( 64 ) float WorldZ[SIMD_WIDTH]{};
         alignas( 64 ) float ClipX[SIMD_WIDTH]{};
         alignas( 64 ) float ClipY[SIMD_WIDTH]{};
+        alignas( 64 ) float ClipW[SIMD_WIDTH]{};
+        alignas( 64 ) float NdcX[SIMD_WIDTH]{};
+        alignas( 64 ) float NdcY[SIMD_WIDTH]{};
 
         const __m256 One = _mm256_set1_ps( 1.0f );
         const __m256 Half = _mm256_set1_ps( 0.5f );
         const __m256 WidthVec = _mm256_set1_ps( Width );
         const __m256 HeightVec = _mm256_set1_ps( Height );
+        const __m256 M00 = _mm256_set1_ps( WorldToProjection[0][0] );
+        const __m256 M01 = _mm256_set1_ps( WorldToProjection[0][1] );
+        const __m256 M02 = _mm256_set1_ps( WorldToProjection[0][2] );
+        const __m256 M03 = _mm256_set1_ps( WorldToProjection[0][3] );
+
+        const __m256 M10 = _mm256_set1_ps( WorldToProjection[1][0] );
+        const __m256 M11 = _mm256_set1_ps( WorldToProjection[1][1] );
+        const __m256 M12 = _mm256_set1_ps( WorldToProjection[1][2] );
+        const __m256 M13 = _mm256_set1_ps( WorldToProjection[1][3] );
+
+        const __m256 M30 = _mm256_set1_ps( WorldToProjection[3][0] );
+        const __m256 M31 = _mm256_set1_ps( WorldToProjection[3][1] );
+        const __m256 M32 = _mm256_set1_ps( WorldToProjection[3][2] );
+        const __m256 M33 = _mm256_set1_ps( WorldToProjection[3][3] );
 
         for ( ; Index + SIMD_WIDTH <= Count; Index += SIMD_WIDTH )
         {
             for ( size_t i = 0; i < SIMD_WIDTH; ++i )
             {
-                Vector3 Projected{};
-                const bool IsVisible = !ScreenTransform( pIn[Index + i] , Projected );
-                pVisible[Index + i] = IsVisible;
-
-                ClipX[i] = Projected.m_x;
-                ClipY[i] = Projected.m_y;
+                WorldX[i] = pIn[Index + i].m_x;
+                WorldY[i] = pIn[Index + i].m_y;
+                WorldZ[i] = pIn[Index + i].m_z;
             }
 
-            const __m256 X = _mm256_load_ps( ClipX );
-            const __m256 Y = _mm256_load_ps( ClipY );
+            const __m256 X = _mm256_load_ps( WorldX );
+            const __m256 Y = _mm256_load_ps( WorldY );
+            const __m256 Z = _mm256_load_ps( WorldZ );
 
-            const __m256 XNorm = _mm256_mul_ps( _mm256_add_ps( X , One ) , Half );
-            const __m256 YNorm = _mm256_mul_ps( _mm256_add_ps( Y , One ) , Half );
+#if defined( __FMA__ )
+            const __m256 ClipXVec = _mm256_fmadd_ps( Z , M02 , _mm256_fmadd_ps( Y , M01 , _mm256_fmadd_ps( X , M00 , M03 ) ) );
+            const __m256 ClipYVec = _mm256_fmadd_ps( Z , M12 , _mm256_fmadd_ps( Y , M11 , _mm256_fmadd_ps( X , M10 , M13 ) ) );
+            const __m256 ClipWVec = _mm256_fmadd_ps( Z , M32 , _mm256_fmadd_ps( Y , M31 , _mm256_fmadd_ps( X , M30 , M33 ) ) );
+#else
+            const __m256 ClipXVec = _mm256_add_ps( _mm256_add_ps( _mm256_mul_ps( X , M00 ) , _mm256_mul_ps( Y , M01 ) ) , _mm256_add_ps( _mm256_mul_ps( Z , M02 ) , M03 ) );
+            const __m256 ClipYVec = _mm256_add_ps( _mm256_add_ps( _mm256_mul_ps( X , M10 ) , _mm256_mul_ps( Y , M11 ) ) , _mm256_add_ps( _mm256_mul_ps( Z , M12 ) , M13 ) );
+            const __m256 ClipWVec = _mm256_add_ps( _mm256_add_ps( _mm256_mul_ps( X , M30 ) , _mm256_mul_ps( Y , M31 ) ) , _mm256_add_ps( _mm256_mul_ps( Z , M32 ) , M33 ) );
+#endif
+
+            _mm256_store_ps( ClipX , ClipXVec );
+            _mm256_store_ps( ClipY , ClipYVec );
+            _mm256_store_ps( ClipW , ClipWVec );
+
+            for ( size_t i = 0; i < SIMD_WIDTH; ++i )
+            {
+                if ( ClipW[i] > 0.001f )
+                {
+                    NdcX[i] = ClipX[i] / ClipW[i];
+                    NdcY[i] = ClipY[i] / ClipW[i];
+                    pVisible[Index + i] = true;
+                    ++VisibleCount;
+                }
+                else
+                {
+                    NdcX[i] = 0.f;
+                    NdcY[i] = 0.f;
+                    pVisible[Index + i] = false;
+                }
+            }
+
+            const __m256 NdcXVec = _mm256_load_ps( NdcX );
+            const __m256 NdcYVec = _mm256_load_ps( NdcY );
+
+            const __m256 XNorm = _mm256_mul_ps( _mm256_add_ps( NdcXVec , One ) , Half );
+            const __m256 YNorm = _mm256_mul_ps( _mm256_add_ps( NdcYVec , One ) , Half );
 
 #if defined( __FMA__ )
             const __m256 ScreenX = _mm256_fmadd_ps( XNorm , WidthVec , _mm256_setzero_ps() );
@@ -125,21 +201,33 @@ namespace Math
             {
                 pOut[Index + i].x = ClipX[i];
                 pOut[Index + i].y = ClipY[i];
-
-                if ( pVisible[Index + i] )
-                    ++VisibleCount;
             }
         }
 #endif
 
         for ( ; Index < Count; ++Index )
         {
-            Vector3 Projected{};
-            const bool IsVisible = !ScreenTransform( pIn[Index] , Projected );
+            const auto& Point = pIn[Index];
 
+            const float ClipX = Point.m_x * WorldToProjection[0][0] + Point.m_y * WorldToProjection[0][1] + Point.m_z * WorldToProjection[0][2] + WorldToProjection[0][3];
+            const float ClipY = Point.m_x * WorldToProjection[1][0] + Point.m_y * WorldToProjection[1][1] + Point.m_z * WorldToProjection[1][2] + WorldToProjection[1][3];
+            const float ClipW = Point.m_x * WorldToProjection[3][0] + Point.m_y * WorldToProjection[3][1] + Point.m_z * WorldToProjection[3][2] + WorldToProjection[3][3];
+
+            const bool IsVisible = ClipW > 0.001f;
             pVisible[Index] = IsVisible;
-            pOut[Index].x = ( ( Projected.m_x + 1.0f ) * 0.5f ) * Width;
-            pOut[Index].y = Height - ( ( ( Projected.m_y + 1.0f ) * 0.5f ) * Height );
+
+            if ( IsVisible )
+            {
+                const float NdcX = ClipX / ClipW;
+                const float NdcY = ClipY / ClipW;
+                pOut[Index].x = ( ( NdcX + 1.0f ) * 0.5f ) * Width;
+                pOut[Index].y = Height - ( ( ( NdcY + 1.0f ) * 0.5f ) * Height );
+            }
+            else
+            {
+                pOut[Index].x = 0.f;
+                pOut[Index].y = 0.f;
+            }
 
             if ( IsVisible )
                 ++VisibleCount;

@@ -33,6 +33,7 @@
 - Added batched world-to-screen API with AVX path for screen-space conversion.
 - FMA path enabled for vector post-transform multiply-add where available.
 - Fast vector normalization helper using rsqrt14 path on AVX-512 capable builds.
+- World-to-screen batch now consumes captured world-to-projection matrix data directly, avoiding per-point `ScreenTransform` calls in batch mode.
 
 ## Runtime pipeline/concurrency baseline
 - Startup stages now measured with `QueryPerformanceCounter` and logged (`[perf] ... ms`).
@@ -48,6 +49,7 @@
 
 ## Pattern scan baseline
 - Pattern scanner now supports scalar + AVX2 + AVX-512 masked compare paths for wildcard IDA signatures.
+- Module wait path now uses bounded retries (timeout) instead of unbounded wait loops.
 
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>
