@@ -1,6 +1,10 @@
 #include "CAimbot.hpp"
 #include "../../CS2/SDK/Math/Math.hpp"
 #include "../../AndromedaClient/Render/CRender.hpp"
+#include "../../GameClient/CEntityCache/CEntityCache.hpp"
+#include "../../GameClient/CL_Players.hpp"
+#include "../../GameClient/CL_VisibleCheck.hpp"
+#include "../../GameClient/CL_Bones.hpp"
 #include <immintrin.h>
 #include <cmath>
 #include <algorithm>
@@ -10,6 +14,58 @@ thread_local CAimbot::FireCommand CAimbot::ThreadLocalStaging::pendingCommand;
 
 void CAimbot::Initialize() {
     config = AimbotConfig{};
+}
+
+void CAimbot::UpdateEntityCache() {
+    // Limpar cache atual
+    ThreadLocalStaging::localCache.Clear();
+    
+    if (!SDK::Interfaces::EngineToClient()->IsInGame())
+        return;
+    
+    auto* pLocalController = GetCL_Players()->GetLocalPlayerController();
+    if (!pLocalController)
+        return;
+    
+    int localTeam = pLocalController->m_iTeamNum();
+    
+    const auto& cachedVec = GetEntityCache()->GetCachedEntity();
+    std::scoped_lock lock(GetEntityCache()->GetLock());
+    
+    for (const auto& cachedEntity : *cachedVec) {
+        auto pEntity = cachedEntity.m_Handle.Get();
+        if (!pEntity)
+            continue;
+        
+        if (cachedEntity.m_Type != CachedEntity_t::PLAYER_CONTROLLER)
+            continue;
+        
+        auto* pController = reinterpret_cast<CCSPlayerController*>(pEntity);
+        if (!pController || !pController->m_bPawnIsAlive())
+            continue;
+        
+        // Não mirar em teammates (a menos que desativado)
+        if (pController->m_iTeamNum() == localTeam)
+            continue;
+        
+        auto* pPawn = pController->m_hPawn().Get<C_CSPlayerPawn>();
+        if (!pPawn || !pPawn->IsPlayerPawn())
+            continue;
+        
+        // Obter posição da cabeça
+        Vector3 headPos = GetCL_Bones()->GetBonePositionByName(pPawn, "head_0");
+        if (headPos.IsZero())
+            continue;
+        
+        // Verificar visibilidade se necessário
+        bool isVisible = true;
+        if (config.visibilityCheck) {
+            isVisible = GetCL_VisibleCheck()->IsPlayerControllerVisible(pController);
+        }
+        
+        // Adicionar ao cache SoA
+        ThreadLocalStaging::localCache.AddEntity(headPos, pController->m_iTeamNum(), pPawn->m_iHealth(), isVisible);
+    }
 }
 
 __m512 CAimbot::fast_rsqrt14_ps(__m512 v) {
@@ -45,7 +101,11 @@ void CAimbot::Execute(Vector3& viewAngles, bool& shouldShoot) {
                 best.shouldFire = true;
                 best.fov = currentFOV;
                 
-                QAngle qAngle = Math::CalcAngle(Vector3(0,0,0), headPos); // Posição local mock
+                // Obter posicao do jogador local para calcular o angulo correto
+                auto* pLocalPawn = GetCL_Players()->GetLocalPlayerPawn();
+                Vector3 localPos = pLocalPawn ? pLocalPawn->m_vecOrigin() : Vector3(0, 0, 0);
+                
+                QAngle qAngle = Math::CalcAngle(localPos, headPos);
                 best.targetAngle = Vector3(qAngle.m_x, qAngle.m_y, qAngle.m_z);
             }
         }

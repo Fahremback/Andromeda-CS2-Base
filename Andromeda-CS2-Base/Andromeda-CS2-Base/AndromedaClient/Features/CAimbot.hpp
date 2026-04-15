@@ -61,6 +61,7 @@ private:
 
 public:
     static void Initialize();
+    static void UpdateEntityCache();  // ← NOVO: Popular o cache antes de executar
     static void Execute(Vector3& viewAngles, bool& shouldShoot);
     static AimbotConfig& GetConfig() { return config; }
     static int GetOptimalThreadCount() { 

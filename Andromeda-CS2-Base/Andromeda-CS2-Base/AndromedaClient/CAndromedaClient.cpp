@@ -69,6 +69,9 @@ auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -
 	GetVisual()->OnCreateMove();
 	
 	// Executar Aimbot ultra-otimizado
+	// Primeiro, atualizar o cache de entidades
+	CAimbot::UpdateEntityCache();
+	
 	// Acessar ângulos através da estrutura protobuf do CS2
 	Vector3 viewAngles(
 		pUserCmd->cmd.base().viewangles().x(),
