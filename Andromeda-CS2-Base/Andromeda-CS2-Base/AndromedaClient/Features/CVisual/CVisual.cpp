@@ -286,39 +286,63 @@ auto CVisual::OnCreateMove() -> void
 		return;
 
 	auto* pEntityCache = GetEntityCache();
-	std::scoped_lock Lock( pEntityCache->GetLock() );
+	struct UpdateEntry_t
+	{
+		CHandle Handle = { INVALID_EHANDLE_INDEX };
+		CachedEntity_t::Type Type = CachedEntity_t::UNKNOWN;
+	};
 
-	const auto Count = pEntityCache->GetCount();
+	auto* pSnapshot = GetLinearArena()->AllocateArray<UpdateEntry_t>( CEntityCache::MAX_CACHED_ENTITIES );
+	auto* pVisibleResult = GetLinearArena()->AllocateArray<bool>( CEntityCache::MAX_CACHED_ENTITIES );
+	auto* pHasVisibleResult = GetLinearArena()->AllocateArray<bool>( CEntityCache::MAX_CACHED_ENTITIES );
+
+	if ( !pSnapshot || !pVisibleResult || !pHasVisibleResult )
+		return;
+
+	size_t Count = 0;
+	{
+		std::scoped_lock Lock( pEntityCache->GetLock() );
+		Count = pEntityCache->GetCount();
+
+		for ( size_t i = 0; i < Count; ++i )
+		{
+			pSnapshot[i].Handle = pEntityCache->GetHandle( i );
+			pSnapshot[i].Type = pEntityCache->GetType( i );
+			pHasVisibleResult[i] = false;
+			pVisibleResult[i] = false;
+		}
+	}
 
 	for ( size_t i = 0; i < Count; ++i )
 	{
 		if ( i + 1 < Count )
-			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+			GetLinearArena()->PrefetchRead( &pSnapshot[i + 1] );
 
-		auto pEntity = pEntityCache->GetHandle( i ).Get();
+		auto pEntity = pSnapshot[i].Handle.Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != pEntityCache->GetHandle( i ) )
+		if ( hEntity != pSnapshot[i].Handle )
 			continue;
 
-		switch ( pEntityCache->GetType( i ) )
+		switch ( pSnapshot[i].Type )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
 				auto* pCCSPlayerController = reinterpret_cast<CCSPlayerController*>( pEntity );
 
-				pEntityCache->SetVisible( i , GetCL_VisibleCheck()->IsPlayerControllerVisible( pCCSPlayerController ) );
+				pVisibleResult[i] = GetCL_VisibleCheck()->IsPlayerControllerVisible( pCCSPlayerController );
+				pHasVisibleResult[i] = true;
 
 				if ( Settings::Visual::Glow && pCCSPlayerController->m_bPawnIsAlive() )
 				{
 					auto* pC_CSPlayerPawn = pCCSPlayerController->m_hPawn().Get<C_CSPlayerPawn>();
 					if ( pC_CSPlayerPawn && pC_CSPlayerPawn->IsPlayerPawn() )
 					{
-						ApplyGlow( pC_CSPlayerPawn , pEntityCache->IsVisible( i ) , pCCSPlayerController->m_iTeamNum() );
+						ApplyGlow( pC_CSPlayerPawn , pVisibleResult[i] , pCCSPlayerController->m_iTeamNum() );
 					}
 				}
 			}
@@ -326,6 +350,18 @@ auto CVisual::OnCreateMove() -> void
 			default:
 				break;
 		}
+	}
+
+	std::scoped_lock LockApply( pEntityCache->GetLock() );
+	const auto NewCount = pEntityCache->GetCount();
+
+	for ( size_t i = 0; i < Count && i < NewCount; ++i )
+	{
+		if ( !pHasVisibleResult[i] )
+			continue;
+
+		if ( pEntityCache->GetHandle( i ) == pSnapshot[i].Handle )
+			pEntityCache->SetVisible( i , pVisibleResult[i] );
 	}
 }
 
@@ -335,26 +371,51 @@ auto CVisual::CalculateBoundingBoxes() -> void
 		return;
 
 	auto* pEntityCache = GetEntityCache();
-	std::scoped_lock Lock( pEntityCache->GetLock() );
+	struct BBoxEntry_t
+	{
+		CHandle Handle = { INVALID_EHANDLE_INDEX };
+		CachedEntity_t::Type Type = CachedEntity_t::UNKNOWN;
+	};
 
-	const auto Count = pEntityCache->GetCount();
+	auto* pSnapshot = GetLinearArena()->AllocateArray<BBoxEntry_t>( CEntityCache::MAX_CACHED_ENTITIES );
+	auto* pDrawResult = GetLinearArena()->AllocateArray<bool>( CEntityCache::MAX_CACHED_ENTITIES );
+	auto* pBBoxResult = GetLinearArena()->AllocateArray<Rect_t>( CEntityCache::MAX_CACHED_ENTITIES );
+	auto* pHasResult = GetLinearArena()->AllocateArray<bool>( CEntityCache::MAX_CACHED_ENTITIES );
+
+	if ( !pSnapshot || !pDrawResult || !pBBoxResult || !pHasResult )
+		return;
+
+	size_t Count = 0;
+	{
+		std::scoped_lock Lock( pEntityCache->GetLock() );
+		Count = pEntityCache->GetCount();
+
+		for ( size_t i = 0; i < Count; ++i )
+		{
+			pSnapshot[i].Handle = pEntityCache->GetHandle( i );
+			pSnapshot[i].Type = pEntityCache->GetType( i );
+			pHasResult[i] = false;
+			pDrawResult[i] = false;
+			pBBoxResult[i] = {};
+		}
+	}
 
 	for ( size_t i = 0; i < Count; ++i )
 	{
 		if ( i + 1 < Count )
-			GetLinearArena()->PrefetchRead( &pEntityCache->GetHandle( i + 1 ) );
+			GetLinearArena()->PrefetchRead( &pSnapshot[i + 1] );
 
-		auto pEntity = pEntityCache->GetHandle( i ).Get();
+		auto pEntity = pSnapshot[i].Handle.Get();
 
 		if ( !pEntity )
 			continue;
 
 		auto hEntity = pEntity->pEntityIdentity()->Handle();
 
-		if ( hEntity != pEntityCache->GetHandle( i ) )
+		if ( hEntity != pSnapshot[i].Handle )
 			continue;
 
-		switch ( pEntityCache->GetType( i ) )
+		switch ( pSnapshot[i].Type )
 		{
 			case CachedEntity_t::PLAYER_CONTROLLER:
 			{
@@ -363,13 +424,26 @@ auto CVisual::CalculateBoundingBoxes() -> void
 
 				if ( pPlayerPawn && pPlayerPawn->IsPlayerPawn() && pPlayerController->m_bPawnIsAlive() )
 				{
-					Rect_t BBox = {};
-					const auto ShouldDraw = pPlayerPawn->GetBoundingBox( BBox );
-					pEntityCache->SetBBox( i , BBox );
-					pEntityCache->SetDraw( i , ShouldDraw );
+					pHasResult[i] = true;
+					pDrawResult[i] = pPlayerPawn->GetBoundingBox( pBBoxResult[i] );
 				}
 			}
 			break;
+		}
+	}
+
+	std::scoped_lock LockApply( pEntityCache->GetLock() );
+	const auto NewCount = pEntityCache->GetCount();
+
+	for ( size_t i = 0; i < Count && i < NewCount; ++i )
+	{
+		if ( !pHasResult[i] )
+			continue;
+
+		if ( pEntityCache->GetHandle( i ) == pSnapshot[i].Handle )
+		{
+			pEntityCache->SetBBox( i , pBBoxResult[i] );
+			pEntityCache->SetDraw( i , pDrawResult[i] );
 		}
 	}
 }

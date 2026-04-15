@@ -5,11 +5,12 @@
 #include <cstdio>
 
 static CRenderStackSystem g_CRenderStackSystem{};
+static thread_local CRenderStackSystem::RenderCommands_t g_TLSUpdateBuffer{};
 
 auto CRenderStackSystem::ReserveIfNeeded() -> void
 {
-	if ( m_UpdateBuffer.capacity() < g_DefaultReserve )
-		m_UpdateBuffer.reserve( g_DefaultReserve );
+	if ( g_TLSUpdateBuffer.capacity() < g_DefaultReserve )
+		g_TLSUpdateBuffer.reserve( g_DefaultReserve );
 
 	if ( m_BackBuffer.capacity() < g_DefaultReserve )
 		m_BackBuffer.reserve( g_DefaultReserve );
@@ -20,9 +21,8 @@ auto CRenderStackSystem::ReserveIfNeeded() -> void
 
 auto CRenderStackSystem::PushCommand( const RenderCommand_t& Cmd ) -> void
 {
-	std::scoped_lock lock( m_Lock );
 	ReserveIfNeeded();
-	m_UpdateBuffer.emplace_back( Cmd );
+	g_TLSUpdateBuffer.emplace_back( Cmd );
 }
 
 auto CRenderStackSystem::DrawLine( const ImVec2& Start , const ImVec2& End , const ImColor& Color , const float thickness ) -> void
@@ -178,7 +178,7 @@ auto CRenderStackSystem::OnClientOutput() -> void
 	ReserveIfNeeded();
 
 	m_BackBuffer.clear();
-	m_BackBuffer.swap( m_UpdateBuffer );
+	m_BackBuffer.swap( g_TLSUpdateBuffer );
 	m_bRenderBufferReady.store( true , std::memory_order_release );
 }
 

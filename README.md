@@ -38,11 +38,16 @@
 - Startup stages now measured with `QueryPerformanceCounter` and logged (`[perf] ... ms`).
 - `CAndromedaClient` core state uses `std::atomic_bool` with acquire/release semantics for lightweight cross-thread visibility.
 - Render path now snapshots entity cache metadata from a short lock window into arena memory, then renders lock-free from the snapshot.
+- `OnCreateMove` and bbox updates now use snapshot/compute/apply phases to shorten lock windows in visual update paths.
 
 ## DX11 render baseline
 - Backbuffer RTV creation now uses inferred descriptor (`CreateRenderTargetView(..., nullptr, ...)`) for better compatibility with swapchain formats.
 - Present path now backs up and restores OM render targets + viewport state around ImGui rendering to reduce game pipeline interference.
 - Render stack migrated from `shared_ptr` polymorphic draw objects to a compact command-buffer model with double buffering and atomic-ready signaling.
+- Draw command production now uses thread-local staging and lock-free atomic ready signaling for lower enqueue contention.
+
+## Pattern scan baseline
+- Pattern scanner now supports scalar + AVX2 + AVX-512 masked compare paths for wildcard IDA signatures.
 
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>

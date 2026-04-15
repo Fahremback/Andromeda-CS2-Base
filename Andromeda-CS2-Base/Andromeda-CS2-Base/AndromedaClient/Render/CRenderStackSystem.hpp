@@ -85,7 +85,6 @@ private:
 	auto ExecuteCommand( const RenderCommand_t& Cmd ) -> void;
 
 private:
-	RenderCommands_t m_UpdateBuffer;
 	RenderCommands_t m_BackBuffer;
 	RenderCommands_t m_RenderBuffer;
 
