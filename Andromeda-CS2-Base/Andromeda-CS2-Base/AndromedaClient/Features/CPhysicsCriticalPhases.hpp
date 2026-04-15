@@ -140,6 +140,7 @@ public:
     class Phase5
     {
     public:
+        static constexpr uint32_t IN_ATTACK = ( 1u << 0 );
         static size_t Telemetry_Batch_Execution(TelemetryRingBuffer& queue, TelemetryCmd* outBatch, size_t outCapacity);
         static bool Packet_Accumulation_Choke(TelemetryRingBuffer& queue, const TelemetryCmd& cmd, uint32_t holdTicks, uint64_t currentTick);
         static void Command_Sequence_Omission(TelemetryRingBuffer& queue, uint32_t omissionMask);

@@ -59,3 +59,40 @@ bool CPhysicsSimulationMocks::ApplyRenderSnapshot(void* pPawnBase,
     return true;
 }
 
+size_t CPhysicsSimulationMocks::FlushTelemetryToNetworkMock(void* pClientInputBase,
+                                                            size_t clientInputSize,
+                                                            const NetworkOutputLayout& layout,
+                                                            CPhysicsCriticalPhases::TelemetryRingBuffer& queue,
+                                                            uint32_t omissionMask)
+{
+    if (!pClientInputBase || clientInputSize == 0 || layout.telemetryCapacityBytes == 0)
+        return 0;
+
+    CPhysicsCriticalPhases::Phase5::Command_Sequence_Omission(queue, omissionMask);
+
+    const uintptr_t base = reinterpret_cast<uintptr_t>(pClientInputBase);
+    const uintptr_t outBufferAddr = base + layout.telemetryBufferOffset;
+    if ((outBufferAddr + layout.telemetryCapacityBytes) > (base + clientInputSize))
+        return 0;
+
+    auto* outBytes = reinterpret_cast<uint8_t*>(outBufferAddr);
+    const size_t maxCmds = layout.telemetryCapacityBytes / sizeof(CPhysicsCriticalPhases::TelemetryCmd);
+    if (maxCmds == 0)
+        return 0;
+
+    size_t flushed = 0;
+    alignas(64) CPhysicsCriticalPhases::TelemetryCmd localBatch[64];
+    while (flushed < maxCmds) {
+        const size_t batchCap = (std::min)(static_cast<size_t>(64), maxCmds - flushed);
+        const size_t pulled = CPhysicsCriticalPhases::Phase5::Telemetry_Batch_Execution(queue, localBatch, batchCap);
+        if (pulled == 0)
+            break;
+
+        std::memcpy(outBytes + (flushed * sizeof(CPhysicsCriticalPhases::TelemetryCmd)),
+                    localBatch,
+                    pulled * sizeof(CPhysicsCriticalPhases::TelemetryCmd));
+        flushed += pulled;
+    }
+
+    return flushed;
+}

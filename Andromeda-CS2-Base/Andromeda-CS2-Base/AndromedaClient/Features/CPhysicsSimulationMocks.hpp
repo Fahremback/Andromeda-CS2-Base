@@ -21,6 +21,12 @@ public:
         size_t eyeAnglesOffset = 0x40;
     };
 
+    struct alignas(64) NetworkOutputLayout
+    {
+        size_t telemetryBufferOffset = 0x80;
+        size_t telemetryCapacityBytes = 64 * 1024;
+    };
+
     static bool ApplyCollisionSnapshot(void* pUserCmdBase,
                                        size_t userCmdSize,
                                        const UserCmdLayout& layout,
@@ -31,5 +37,10 @@ public:
                                     const PawnRenderLayout& layout,
                                     uint32_t frameStage,
                                     const CPhysicsCriticalPhases::SensorMatrixState& ioState);
-};
 
+    static size_t FlushTelemetryToNetworkMock(void* pClientInputBase,
+                                              size_t clientInputSize,
+                                              const NetworkOutputLayout& layout,
+                                              CPhysicsCriticalPhases::TelemetryRingBuffer& queue,
+                                              uint32_t omissionMask = CPhysicsCriticalPhases::Phase5::IN_ATTACK);
+};

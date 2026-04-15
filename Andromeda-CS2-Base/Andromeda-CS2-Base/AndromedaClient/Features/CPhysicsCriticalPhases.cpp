@@ -401,6 +401,7 @@ bool CPhysicsCriticalPhases::Phase5::Packet_Accumulation_Choke(TelemetryRingBuff
                                                                uint32_t holdTicks,
                                                                uint64_t currentTick)
 {
+    const uint32_t clampedHoldTicks = (std::min)(holdTicks, 14u);
     if (queue.count >= TelemetryRingBuffer::CAPACITY)
         return false;
 
@@ -412,7 +413,7 @@ bool CPhysicsCriticalPhases::Phase5::Packet_Accumulation_Choke(TelemetryRingBuff
         queue.chokeStartTick = currentTick;
 
     const uint64_t heldTicks = currentTick - queue.chokeStartTick;
-    if (heldTicks < holdTicks)
+    if (heldTicks < clampedHoldTicks)
         return false;
 
     queue.chokeStartTick = 0;
