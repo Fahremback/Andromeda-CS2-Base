@@ -49,6 +49,12 @@ public:
     class Phase2
     {
     public:
+        static bool Volumetric_Penetration_Solver_TraceIO(const PenetrationRay& ray,
+                                                          float initialEnergy,
+                                                          float minimumThreshold,
+                                                          uint32_t maxImpacts,
+                                                          PenetrationResult& outResult);
+
         static bool Volumetric_Penetration_Solver(const PenetrationRay& ray,
                                                   const MaterialLayer* layers,
                                                   size_t layerCount,
@@ -74,4 +80,3 @@ public:
         static void Inertial_Damping_Override(Vector3& ioVelocity);
     };
 };
-

@@ -1,4 +1,5 @@
 #include "CPhysicsCriticalPhases.hpp"
+#include "../../GameClient/CL_Trace.hpp"
 
 #include <immintrin.h>
 #include <algorithm>
@@ -88,6 +89,70 @@ bool CPhysicsCriticalPhases::Phase2::Volumetric_Penetration_Solver(const Penetra
     outResult.accumulatedThickness = accumulatedThickness;
     outResult.processedLayers = processedLayers;
     outResult.reachedTarget = (remainingEnergy > minimumThreshold) && (accumulatedThickness <= ray.maxDistance);
+    return outResult.reachedTarget;
+}
+
+bool CPhysicsCriticalPhases::Phase2::Volumetric_Penetration_Solver_TraceIO(const PenetrationRay& ray,
+                                                                            float initialEnergy,
+                                                                            float minimumThreshold,
+                                                                            uint32_t maxImpacts,
+                                                                            PenetrationResult& outResult)
+{
+    outResult = {};
+    if (maxImpacts == 0 || initialEnergy <= 0.0f || ray.maxDistance <= 0.0f)
+        return false;
+
+    CL_Trace* pTrace = GetCL_Trace();
+    if (!pTrace)
+        return false;
+
+    Vector3 dir = ray.direction;
+    const float dirLenSq = dir.m_x * dir.m_x + dir.m_y * dir.m_y + dir.m_z * dir.m_z;
+    if (dirLenSq <= 1.0e-8f)
+        return false;
+    const float invLen = 1.0f / std::sqrt(dirLenSq);
+    dir = dir * invLen;
+
+    Vector3 currentStart = ray.start;
+    float remainingDistance = ray.maxDistance;
+    float remainingEnergy = initialEnergy;
+
+    for (uint32_t impact = 0; impact < maxImpacts && remainingDistance > 0.0f; ++impact) {
+        const Vector3 traceEnd = currentStart + (dir * remainingDistance);
+        TracePhysicsSample sample{};
+        if (!pTrace->TracePhysicsSegment(currentStart, traceEnd, sample)) {
+            outResult.reachedTarget = true;
+            break;
+        }
+
+        if (!sample.didHit || sample.fraction >= 1.0f) {
+            outResult.reachedTarget = true;
+            break;
+        }
+
+        const float traveled = (std::max)(0.0f, remainingDistance * sample.fraction);
+        const float layerLoss = Material_Density_Energy_Loss(
+            remainingEnergy,
+            sample.density,
+            traveled,
+            sample.penetrationResistance
+        );
+
+        remainingEnergy -= layerLoss;
+        outResult.accumulatedThickness += traveled;
+        ++outResult.processedLayers;
+
+        if (!Minimum_Kinetic_Threshold(remainingEnergy, minimumThreshold)) {
+            outResult.remainingEnergy = (std::max)(remainingEnergy, 0.0f);
+            outResult.reachedTarget = false;
+            return false;
+        }
+
+        currentStart = sample.hitPosition + (dir * 0.5f);
+        remainingDistance -= (traveled + 0.5f);
+    }
+
+    outResult.remainingEnergy = (std::max)(remainingEnergy, 0.0f);
     return outResult.reachedTarget;
 }
 
@@ -216,4 +281,3 @@ void CPhysicsCriticalPhases::Phase4::Inertial_Damping_Override(Vector3& ioVeloci
     ioVelocity.m_y = out[1];
     ioVelocity.m_z = out[2];
 }
-
