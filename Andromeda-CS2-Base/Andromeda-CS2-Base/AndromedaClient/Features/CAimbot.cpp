@@ -1,5 +1,5 @@
 #include "CAimbot.hpp"
-#include "../Common/Math/Math.hpp"
+#include "../../CS2/SDK/Math/Math.hpp"
 #include <immintrin.h>
 #include <cmath>
 #include <chrono>
@@ -25,42 +25,19 @@ namespace Andromeda::Features
     }
 
     // Normalização vetorial ultra-rápida usando rsqrt14 (70% menos ciclos)
-    __m512 CAimbot::NormalizeVectorFast_AVX512(__m512 vec)
+    // Implementação simplificada para compatibilidade
+    void CAimbot::NormalizeVectorFast_SIMD(float* vec, float* out)
     {
-        // _mm512_rsqrt14_ps usa aproximação de 14 bits - extremamente rápido
-        __m512 lengthSq = _mm512_mul_ps(vec, vec);
-        
-        // Soma dos componentes para magnitude ao quadrado
-        __m128 h = _mm_add_ps(_mm512_extractf32x4_ps(lengthSq, 0),
-                              _mm512_extractf32x4_ps(lengthSq, 1));
-        h = _mm_add_ps(h, _mm_add_ps(_mm512_extractf32x4_ps(lengthSq, 2),
-                                      _mm512_extractf32x4_ps(lengthSq, 3)));
-        h = _mm_hadd_ps(h, h);
+        __m128 v = _mm_loadu_ps(vec);
+        __m128 lengthSq = _mm_mul_ps(v, v);
+        __m128 h = _mm_hadd_ps(lengthSq, lengthSq);
         h = _mm_hadd_ps(h, h);
         
-        __m512 length = _mm512_set1_ps(_mm_cvtss_f32(h));
-        __m512 invLength = _mm512_rsqrt14_ps(length);
+        float len = _mm_cvtss_f32(h);
+        float invLen = 1.0f / sqrtf(len);
         
-        return _mm512_mul_ps(vec, invLength);
-    }
-
-    // Cálculo de ângulo com FMA para precisão de hardware
-    __m512 CAimbot::CalcAngle_FMA(__m512 srcPos, __m512 dstPos)
-    {
-        // Delta = dst - src usando FMA para precisão
-        __m512 delta = _mm512_fnmadd_ps(_mm512_set1_ps(-1.0f), dstPos, srcPos);
-        
-        // Calcular ângulos (pitch e yaw)
-        // Pitch: atan2(-deltaZ, sqrt(deltaX^2 + deltaY^2))
-        // Yaw: atan2(deltaY, deltaX)
-        
-        __m512 deltaXY = _mm512_mul_ps(delta, delta);
-        __m512 deltaXYSum = _mm512_add_ps(
-            _mm512_maskz_compress_ps(0b011, deltaXY),
-            _mm512_maskz_compress_ps(0b100, deltaXY)
-        );
-        
-        return delta; // Retorna delta para processamento posterior
+        __m128 result = _mm_mul_ps(v, _mm_set1_ps(invLen));
+        _mm_storeu_ps(out, result);
     }
 
     // AutoWall com cálculo de dano mínimo
@@ -206,7 +183,7 @@ namespace Andromeda::Features
         // Configurar comando de disparo se encontrou alvo
         if (bestIndex != SIZE_MAX)
         {
-            bestTarget.shouldFire.store(true, std::memory_order_release);
+            bestTarget.shouldFire = true;
             bestTarget.targetPosition = Vector3(
                 cache.headX[bestIndex],
                 cache.headY[bestIndex],
@@ -288,12 +265,12 @@ namespace Andromeda::Features
         
         // Processar alvos com SIMD
         FireCommand& pendingCmd = ThreadLocalStaging::pendingCommand;
-        pendingCmd.shouldFire.store(false, std::memory_order_relaxed);
+        pendingCmd.shouldFire = false;
         
         ProcessTargets_SIMD(entityCache, pendingCmd);
         
         // Se encontrou alvo válido
-        if (pendingCmd.shouldFire.load(std::memory_order_acquire))
+        if (pendingCmd.shouldFire)
         {
             // Calcular ângulos
             Vector3 localPos(0, 0, 0); // Placeholder - obter posição local real
@@ -308,8 +285,8 @@ namespace Andromeda::Features
             // Aplicar controle de recoil se configurado
             if (config.recoilControl)
             {
-                targetAngle.x -= config.recoilControlX;
-                targetAngle.y += config.recoilControlY;
+                targetAngle.m_x -= config.recoilControlX;
+                targetAngle.m_y += config.recoilControlY;
             }
             
             // Atualizar view angles

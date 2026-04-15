@@ -1,6 +1,6 @@
 #pragma once
-#include "../Common/Math/Vector3.hpp"
-#include "../Common/Math/Matrix4x4.hpp"
+#include "../../Common/Common.hpp"
+#include "../CS2/SDK/Math/Vector3.hpp"
 #include <cstdint>
 #include <atomic>
 
@@ -64,13 +64,13 @@ namespace Andromeda::Features
         {
             if (entityCount >= MAX_ENTITIES) return;
             
-            posX[entityCount] = pos.x;
-            posY[entityCount] = pos.y;
-            posZ[entityCount] = pos.z;
+            posX[entityCount] = pos.m_x;
+            posY[entityCount] = pos.m_y;
+            posZ[entityCount] = pos.m_z;
             
-            headX[entityCount] = headPos.x;
-            headY[entityCount] = headPos.y;
-            headZ[entityCount] = headPos.z;
+            headX[entityCount] = headPos.m_x;
+            headY[entityCount] = headPos.m_y;
+            headZ[entityCount] = headPos.m_z;
             
             teamId[entityCount] = team;
             isActive[entityCount] = true;
@@ -85,13 +85,13 @@ namespace Andromeda::Features
     // Comando de disparo thread-safe
     struct alignas(64) FireCommand
     {
-        std::atomic<bool> shouldFire{false};
+        bool shouldFire{false};
         Vector3 targetAngle{0, 0, 0};
         Vector3 targetPosition{0, 0, 0};
         uint32_t targetIndex = 0;
         float damage = 0;
         int64_t timestamp = 0;
-        char padding[64 - sizeof(std::atomic<bool>) - sizeof(Vector3)*2 - sizeof(uint32_t) - sizeof(float) - sizeof(int64_t)];
+        char padding[64 - sizeof(bool) - sizeof(Vector3)*2 - sizeof(uint32_t) - sizeof(float) - sizeof(int64_t)];
     };
 
     // MPSC Ring Buffer para comunicação lock-free entre threads
@@ -197,10 +197,6 @@ namespace Andromeda::Features
         static inline AimbotConfig config;
         static inline MPSCRingBuffer fireQueue;
         static inline ArenaAllocator globalArena;
-        
-        // Métodos otimizados com SIMD
-        static __m512 NormalizeVectorFast_AVX512(__m512 vec);
-        static __m512 CalcAngle_FMA(__m512 srcPos, __m512 dstPos);
         
         // Processamento batch de alvos com AVX-512
         static void ProcessTargets_SIMD(SoAEntityCache& cache, FireCommand& bestTarget);
