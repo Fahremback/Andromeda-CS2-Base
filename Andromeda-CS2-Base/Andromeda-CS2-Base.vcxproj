@@ -138,7 +138,7 @@
   <ItemGroup>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CAimbot.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsAligner.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.cpp" />
@@ -255,7 +255,7 @@
   <ItemGroup>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CAimbot.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsAligner.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.hpp" />

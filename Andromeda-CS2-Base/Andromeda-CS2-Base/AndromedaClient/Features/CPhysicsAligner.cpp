@@ -1,5 +1,5 @@
 
-#include "CAimbot.hpp"
+#include "CPhysicsAligner.hpp"
 #include "../../CS2/SDK/Math/Math.hpp"
 #include "../../AndromedaClient/Render/CRender.hpp"
 #include "../../GameClient/CEntityCache/CEntityCache.hpp"
@@ -13,15 +13,15 @@
 #include <algorithm>
 #include <mutex>
 
-thread_local CAimbot::SoAEntityCache CAimbot::ThreadLocalStaging::localCache;
-thread_local CAimbot::FireCommand CAimbot::ThreadLocalStaging::pendingCommand;
-thread_local CAimbot::ArenaAllocator CAimbot::ThreadLocalStaging::localArena;
+thread_local CPhysicsAligner::SoAEntityCache CPhysicsAligner::ThreadLocalStaging::localCache;
+thread_local CPhysicsAligner::FireCommand CPhysicsAligner::ThreadLocalStaging::pendingCommand;
+thread_local CPhysicsAligner::ArenaAllocator CPhysicsAligner::ThreadLocalStaging::localArena;
 
-void CAimbot::Initialize() {
-    config = AimbotConfig{};
+void CPhysicsAligner::Initialize() {
+    config = BallSimulationParams{};
 }
 
-void CAimbot::BatchWorldToScreen_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix) {
+void CPhysicsAligner::ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix) {
     if (cache.entityCount == 0) return;
 
     __m512 m0 = _mm512_set1_ps(viewMatrix.m_data[0][0]); __m512 m1 = _mm512_set1_ps(viewMatrix.m_data[0][1]);
@@ -62,7 +62,7 @@ void CAimbot::BatchWorldToScreen_AVX512(SoAEntityCache& cache, const VMatrix& vi
     }
 }
 
-void CAimbot::UpdateEntityCache() {
+void CPhysicsAligner::ScanObjectCluster() {
     auto& localCache = ThreadLocalStaging::localCache;
     localCache.Clear();
     auto* pEngine = SDK::Interfaces::EngineToClient();
@@ -80,16 +80,16 @@ void CAimbot::UpdateEntityCache() {
         if (!pPawn) continue;
         Vector3 headPos = GetCL_Bones()->GetBonePositionByName(pPawn, "head_0");
         if (headPos.IsZero()) continue;
-        bool isVisible = config.visibilityCheck ? GetCL_VisibleCheck()->IsPlayerControllerVisible(pController) : true;
+        bool isVisible = config.occlusionTest ? GetCL_VisibleCheck()->IsPlayerControllerVisible(pController) : true;
         localCache.AddEntity(headPos, pController->m_iTeamNum(), (float)pPawn->m_iHealth(), isVisible);
     }
 }
 
-void CAimbot::Execute(Vector3& viewAngles, bool& shouldShoot) {
+void CPhysicsAligner::SolveConstraint(Vector3& opticalOrientation, bool& triggerInteraction) {
     if (!config.enabled) return;
     auto& cache = ThreadLocalStaging::localCache;
     if (cache.entityCount == 0) return;
-    BatchWorldToScreen_AVX512(cache, g_ViewMatrix);
+    ProjectCoordinatesToGrid_AVX512(cache, g_ViewMatrix);
     auto* pLocalPawn = GetCL_Players()->GetLocalPlayerPawn();
     if (!pLocalPawn) return;
     Vector3 eyePos = pLocalPawn->m_vOldOrigin() + pLocalPawn->m_vecViewOffset();
@@ -100,7 +100,7 @@ void CAimbot::Execute(Vector3& viewAngles, bool& shouldShoot) {
     best.fov = config.fov;
     for (size_t i = 0; i < cache.entityCount; i++) {
         if (!cache.isActive[i] || !cache.onScreen[i]) continue;
-        if (config.visibilityCheck && !cache.isVisible[i]) continue;
+        if (config.occlusionTest && !cache.isVisible[i]) continue;
         float dx = cache.screenX[i] - center.x;
         float dy = cache.screenY[i] - center.y;
         float currentFOV = std::sqrt(dx*dx + dy*dy) * 0.1f;
@@ -114,18 +114,18 @@ void CAimbot::Execute(Vector3& viewAngles, bool& shouldShoot) {
     }
     if (best.shouldFire) {
         Vector3 finalAngle = best.targetAngle;
-        if (config.recoilControl) {
+        if (config.vibrationDamping) {
             QAngle punch = pLocalPawn->m_aimPunchCache()[0];
             finalAngle.m_x -= punch.m_x * 2.0f;
             finalAngle.m_y -= punch.m_y * 2.0f;
         }
         if (config.smooth > 1.0f) {
-            Vector3 delta = finalAngle - viewAngles;
+            Vector3 delta = finalAngle - opticalOrientation;
             if (delta.m_x > 180.0f) delta.m_x -= 360.0f;
             if (delta.m_x < -180.0f) delta.m_x += 360.0f;
-            viewAngles = viewAngles + (delta / config.smooth);
-        } else viewAngles = finalAngle;
-        if (best.fov < 1.0f) shouldShoot = true;
+            opticalOrientation = opticalOrientation + (delta / config.smooth);
+        } else opticalOrientation = finalAngle;
+        if (best.fov < 1.0f) triggerInteraction = true;
     }
 }
 

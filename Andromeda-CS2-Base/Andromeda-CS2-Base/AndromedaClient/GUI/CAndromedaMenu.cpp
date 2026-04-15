@@ -4,7 +4,7 @@
 
 #include <AndromedaClient/Settings/Settings.hpp>
 #include <AndromedaClient/CAndromedaGUI.hpp>
-#include <AndromedaClient/Features/CAimbot.hpp>
+#include <AndromedaClient/Features/CPhysicsAligner.hpp>
 #include <string>
 
 static CAndromedaMenu g_CAndromedaMenu{};
@@ -49,7 +49,7 @@ auto CAndromedaMenu::RenderSidebar() -> void
 	ImGui::TextColored( ImVec4( 0.65f , 0.89f , 1.00f , 1.00f ) , XorStr( "Modules" ) );
 	ImGui::Spacing();
 
-	RenderNavButton( XorStr( "Aimbot Engine" ) , EMenuTab::Aimbot );
+	RenderNavButton( XorStr( "Collision Optimizer" ) , EMenuTab::CollisionOptimizer );
 	RenderNavButton( XorStr( "Visual Stack" ) , EMenuTab::Visuals );
 	RenderNavButton( XorStr( "Color Pipeline" ) , EMenuTab::Colors );
 	RenderNavButton( XorStr( "System / Menu" ) , EMenuTab::Menu );
@@ -64,8 +64,8 @@ auto CAndromedaMenu::RenderContent() -> void
 {
 	switch ( m_CurrentTab )
 	{
-	case EMenuTab::Aimbot:
-		RenderAimbotTab();
+	case EMenuTab::CollisionOptimizer:
+		RenderCollisionOptimizerTab();
 		break;
 	case EMenuTab::Visuals:
 		RenderVisualsTab();
@@ -81,26 +81,26 @@ auto CAndromedaMenu::RenderContent() -> void
 	}
 }
 
-auto CAndromedaMenu::RenderAimbotTab() -> void
+auto CAndromedaMenu::RenderCollisionOptimizerTab() -> void
 {
-	auto& aimbotConfig = CAimbot::GetConfig();
+	auto& alignmentConfig = CPhysicsAligner::GetConfig();
 
-	RenderSectionHeader( XorStr( "Aimbot Engine" ) , XorStr( "Pipeline de combate vetorizado com foco em baixa latencia" ) );
+	RenderSectionHeader( XorStr( "Collision Optimizer" ) , XorStr( "Pipeline de combate vetorizado com foco em baixa latencia" ) );
 
-	ImGui::BeginChild( XorStr( "##Aimbot.Core" ) , ImVec2( 0.f , 220.f ) , true );
-	RenderCheckBox( XorStr( "Enable Aimbot" ) , XorStr( "##Aimbot.Enabled" ) , aimbotConfig.enabled );
-	RenderCheckBox( XorStr( "Trigger Bot" ) , XorStr( "##Aimbot.TriggerBot" ) , aimbotConfig.triggerBot );
-	RenderCheckBox( XorStr( "Auto Wall" ) , XorStr( "##Aimbot.AutoWall" ) , aimbotConfig.autoWall );
-	RenderCheckBox( XorStr( "Recoil Control" ) , XorStr( "##Aimbot.RecoilControl" ) , aimbotConfig.recoilControl );
-	RenderSliderInt( XorStr( "Bone Target" ) , XorStr( "##Aimbot.BoneTarget" ) , aimbotConfig.boneTarget , 0 , 19 );
-	RenderSliderInt( XorStr( "Min Damage" ) , XorStr( "##Aimbot.MinDamage" ) , aimbotConfig.minDamage , 1 , 100 );
-	RenderSliderFloat( XorStr( "Smooth" ) , XorStr( "##Aimbot.Smooth" ) , aimbotConfig.smooth , 1.0f , 100.0f );
-	RenderSliderFloat( XorStr( "FOV" ) , XorStr( "##Aimbot.FOV" ) , aimbotConfig.fov , 0.0f , 180.0f );
+	ImGui::BeginChild( XorStr( "##CollisionOptimizer.Core" ) , ImVec2( 0.f , 220.f ) , true );
+	RenderCheckBox( XorStr( "Enable Collision Optimizer" ) , XorStr( "##CollisionOptimizer.Enabled" ) , alignmentConfig.enabled );
+	RenderCheckBox( XorStr( "Trigger Interaction" ) , XorStr( "##CollisionOptimizer.TriggerInteraction" ) , alignmentConfig.triggerInteraction );
+	RenderCheckBox( XorStr( "Phase Bypass" ) , XorStr( "##CollisionOptimizer.PhaseBypass" ) , alignmentConfig.phaseBypass );
+	RenderCheckBox( XorStr( "Vibration Damping" ) , XorStr( "##CollisionOptimizer.VibrationDamping" ) , alignmentConfig.vibrationDamping );
+	RenderSliderInt( XorStr( "Anchor Point" ) , XorStr( "##CollisionOptimizer.AnchorPoint" ) , alignmentConfig.anchorPoint , 0 , 19 );
+	RenderSliderInt( XorStr( "Min Damage" ) , XorStr( "##CollisionOptimizer.MinDamage" ) , alignmentConfig.minDamage , 1 , 100 );
+	RenderSliderFloat( XorStr( "Smooth" ) , XorStr( "##CollisionOptimizer.Smooth" ) , alignmentConfig.smooth , 1.0f , 100.0f );
+	RenderSliderFloat( XorStr( "FOV" ) , XorStr( "##CollisionOptimizer.FOV" ) , alignmentConfig.fov , 0.0f , 180.0f );
 
-	if ( aimbotConfig.recoilControl )
+	if ( alignmentConfig.vibrationDamping )
 	{
-		RenderSliderFloat( XorStr( "Recoil X" ) , XorStr( "##Aimbot.RCX" ) , aimbotConfig.recoilControlX , -10.0f , 10.0f );
-		RenderSliderFloat( XorStr( "Recoil Y" ) , XorStr( "##Aimbot.RCY" ) , aimbotConfig.recoilControlY , -10.0f , 10.0f );
+		RenderSliderFloat( XorStr( "Vibration X" ) , XorStr( "##CollisionOptimizer.VDX" ) , alignmentConfig.vibrationDampingX , -10.0f , 10.0f );
+		RenderSliderFloat( XorStr( "Vibration Y" ) , XorStr( "##CollisionOptimizer.VDY" ) , alignmentConfig.vibrationDampingY , -10.0f , 10.0f );
 	}
 	ImGui::EndChild();
 
@@ -110,7 +110,7 @@ auto CAndromedaMenu::RenderAimbotTab() -> void
 		XorStr( "Projecao de todos os ossos de multiplos players em lote vetorial unico." ) ,
 		XorStr( "Elimina loop escalar para varredura agressiva de alvos." ) );
 	RenderTechCard(
-		XorStr( "SoA Entity Cache + rsqrt14" ) ,
+		XorStr( "SoA ActiveParticle Cache + rsqrt14" ) ,
 		XorStr( "Posicoes contiguas no cache e normalizacao rapida do vetor de mira." ) ,
 		XorStr( "Menos cache misses e queda grande no custo de ciclos." ) );
 }
@@ -194,8 +194,8 @@ auto CAndromedaMenu::RenderMenuTab() -> void
 		XorStr( "Telemetry" ) ,
 		XorStr( "AVX-512, contagem de threads e status geral da pipeline." ) ,
 		XorStr( "Visibilidade imediata da capacidade de execucao atual." ) );
-	ImGui::BulletText( "AVX-512 Support: %s" , CAimbot::HasAVX512() ? "YES" : "NO" );
-	ImGui::BulletText( "Thread Count: %d" , CAimbot::GetOptimalThreadCount() );
+	ImGui::BulletText( "AVX-512 Support: %s" , CPhysicsAligner::HasAVX512() ? "YES" : "NO" );
+	ImGui::BulletText( "Thread Count: %d" , CPhysicsAligner::GetOptimalThreadCount() );
 }
 
 auto CAndromedaMenu::RenderSectionHeader( const char* szTitle , const char* szSubtitle ) -> void

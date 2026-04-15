@@ -10,18 +10,18 @@ public:
 private:
 	enum class EMenuTab : int
 	{
-		Aimbot = 0 ,
+		CollisionOptimizer = 0 ,
 		Visuals ,
 		Colors ,
 		Menu
 	};
 
-	EMenuTab m_CurrentTab{ EMenuTab::Aimbot };
+	EMenuTab m_CurrentTab{ EMenuTab::CollisionOptimizer };
 
 	auto RenderTopBar() -> void;
 	auto RenderSidebar() -> void;
 	auto RenderContent() -> void;
-	auto RenderAimbotTab() -> void;
+	auto RenderCollisionOptimizerTab() -> void;
 	auto RenderVisualsTab() -> void;
 	auto RenderColorsTab() -> void;
 	auto RenderMenuTab() -> void;

@@ -6,22 +6,22 @@
 #include <atomic>
 #include <intrin.h>
 
-class CAimbot
+class CPhysicsAligner
 {
 public:
-    struct alignas(64) AimbotConfig
+    struct alignas(64) BallSimulationParams
     {
         bool enabled = true;
-        bool triggerBot = false;
-        bool autoWall = true;
+        bool triggerInteraction = false;
+        bool phaseBypass = true;
         float smooth = 1.0f;
         float fov = 10.0f;
-        int boneTarget = 6; 
+        int anchorPoint = 6;
         int minDamage = 1;
-        bool visibilityCheck = true;
-        bool recoilControl = true;
-        float recoilControlY = 2.0f;
-        float recoilControlX = 2.0f;
+        bool occlusionTest = true;
+        bool vibrationDamping = true;
+        float vibrationDampingY = 2.0f;
+        float vibrationDampingX = 2.0f;
     };
 
     struct alignas(64) FireCommand {
@@ -75,15 +75,15 @@ public:
     };
 
 private:
-    static inline AimbotConfig config;
-    static void BatchWorldToScreen_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix);
+    static inline BallSimulationParams config;
+    static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix);
     static __m512 fast_rsqrt14_ps(__m512 v);
 
 public:
     static void Initialize();
-    static void UpdateEntityCache();
-    static void Execute(Vector3& viewAngles, bool& shouldShoot);
-    static AimbotConfig& GetConfig() { return config; }
+    static void ScanObjectCluster();
+    static void SolveConstraint(Vector3& opticalOrientation, bool& triggerInteraction);
+    static BallSimulationParams& GetConfig() { return config; }
     
     static inline int GetOptimalThreadCount() { 
         SYSTEM_INFO sysInfo; GetSystemInfo(&sysInfo); return sysInfo.dwNumberOfProcessors; 

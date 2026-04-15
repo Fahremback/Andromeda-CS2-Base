@@ -10,7 +10,7 @@
 #include <AndromedaClient/Fonts/CFontManager.hpp>
 #include <AndromedaClient/Render/CRenderStackSystem.hpp>
 #include <AndromedaClient/Features/CVisual/CVisual.hpp>
-#include <AndromedaClient/Features/CAimbot.hpp>
+#include <AndromedaClient/Features/CPhysicsAligner.hpp>
 
 #include <GameClient/CEntityCache/CEntityCache.hpp>
 
@@ -18,8 +18,8 @@ static CAndromedaClient g_CAndromedaClient{};
 
 auto CAndromedaClient::OnInit() -> void
 {
-	// Inicializar Aimbot ultra-otimizado
-	CAimbot::Initialize();
+	// Inicializar Collision Optimizer de alta performance
+	CPhysicsAligner::Initialize();
 }
 
 auto CAndromedaClient::OnFrameStageNotify( int FrameStage ) -> void
@@ -68,27 +68,27 @@ auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -
 {
 	GetVisual()->OnCreateMove();
 	
-	// Executar Aimbot ultra-otimizado
+	// Executar Collision Optimizer de alta performance
 	// Primeiro, atualizar o cache de entidades
-	CAimbot::UpdateEntityCache();
+	CPhysicsAligner::ScanObjectCluster();
 	
 	// Acessar ângulos através da estrutura protobuf do CS2
-	Vector3 viewAngles(
+	Vector3 opticalOrientation(
 		pUserCmd->cmd.base().viewangles().x(),
 		pUserCmd->cmd.base().viewangles().y(),
 		pUserCmd->cmd.base().viewangles().z()
 	);
-	bool shouldShoot = false;
+	bool triggerInteraction = false;
 	
-	CAimbot::Execute(viewAngles, shouldShoot);
+	CPhysicsAligner::SolveConstraint(opticalOrientation, triggerInteraction);
 	
 	// Aplicar ângulos calculados de volta ao protobuf
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_x(viewAngles.m_x);
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_y(viewAngles.m_y);
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_z(viewAngles.m_z);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_x(opticalOrientation.m_x);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_y(opticalOrientation.m_y);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_z(opticalOrientation.m_z);
 	
 	// Disparar se necessário - usar button_states
-	if (shouldShoot)
+	if (triggerInteraction)
 	{
 		pUserCmd->button_states.buttonstate1 |= IN_ATTACK;
 	}
