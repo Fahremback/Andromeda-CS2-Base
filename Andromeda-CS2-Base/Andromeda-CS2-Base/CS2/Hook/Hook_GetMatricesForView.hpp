@@ -1,3 +1,4 @@
+#include <CS2/SDK/Math/Matrix.hpp>
 #pragma once
 
 #include <Common/Common.hpp>
@@ -12,3 +13,5 @@ auto Hook_GetMatricesForView( void* rcx , void* view ,
 
 using GetMatricesForView_t = decltype( &Hook_GetMatricesForView );
 inline GetMatricesForView_t GetMatricesForView_o = nullptr;
+
+inline VMatrix g_ViewMatrix;

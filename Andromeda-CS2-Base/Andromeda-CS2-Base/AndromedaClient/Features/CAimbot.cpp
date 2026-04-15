@@ -1,3 +1,4 @@
+
 #include "CAimbot.hpp"
 #include "../../CS2/SDK/Math/Math.hpp"
 #include "../../AndromedaClient/Render/CRender.hpp"
@@ -6,6 +7,7 @@
 #include "../../GameClient/CL_VisibleCheck.hpp"
 #include "../../GameClient/CL_Bones.hpp"
 #include <CS2/SDK/Interface/IEngineToClient.hpp>
+#include <CS2/Hook/Hook_GetMatricesForView.hpp>
 #include <immintrin.h>
 #include <cmath>
 #include <algorithm>
@@ -13,151 +15,117 @@
 
 thread_local CAimbot::SoAEntityCache CAimbot::ThreadLocalStaging::localCache;
 thread_local CAimbot::FireCommand CAimbot::ThreadLocalStaging::pendingCommand;
+thread_local CAimbot::ArenaAllocator CAimbot::ThreadLocalStaging::localArena;
 
 void CAimbot::Initialize() {
     config = AimbotConfig{};
 }
 
-void CAimbot::UpdateEntityCache() {
-    ThreadLocalStaging::localCache.Clear();
-    
-    auto* pEngine = SDK::Interfaces::EngineToClient();
-    if (!pEngine || !pEngine->IsInGame())
-        return;
-    
-    auto* pPlayers = GetCL_Players();
-    if (!pPlayers) return;
+void CAimbot::BatchWorldToScreen_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix) {
+    if (cache.entityCount == 0) return;
 
-    auto* pLocalController = pPlayers->GetLocalPlayerController();
-    if (!pLocalController)
-        return;
-    
-    int localTeam = pLocalController->m_iTeamNum();
-    auto* pCache = GetEntityCache();
-    if (!pCache) return;
+    __m512 m0 = _mm512_set1_ps(viewMatrix.m_data[0][0]); __m512 m1 = _mm512_set1_ps(viewMatrix.m_data[0][1]);
+    __m512 m2 = _mm512_set1_ps(viewMatrix.m_data[0][2]); __m512 m3 = _mm512_set1_ps(viewMatrix.m_data[0][3]);
+    __m512 m4 = _mm512_set1_ps(viewMatrix.m_data[1][0]); __m512 m5 = _mm512_set1_ps(viewMatrix.m_data[1][1]);
+    __m512 m6 = _mm512_set1_ps(viewMatrix.m_data[1][2]); __m512 m7 = _mm512_set1_ps(viewMatrix.m_data[1][3]);
+    __m512 m12 = _mm512_set1_ps(viewMatrix.m_data[3][0]); __m512 m13 = _mm512_set1_ps(viewMatrix.m_data[3][1]);
+    __m512 m14 = _mm512_set1_ps(viewMatrix.m_data[3][2]); __m512 m15 = _mm512_set1_ps(viewMatrix.m_data[3][3]);
 
-    const auto& cachedVec = pCache->GetCachedEntity();
-    if (!cachedVec) return;
+    const ImVec2 screen = ImGui::GetIO().DisplaySize;
+    if (screen.x <= 0 || screen.y <= 0) return;
 
-    std::scoped_lock lock(pCache->GetLock());
-    
-    for (const auto& cachedEntity : *cachedVec) {
-        auto pEntity = cachedEntity.m_Handle.Get();
-        if (!pEntity || cachedEntity.m_Type != CachedEntity_t::PLAYER_CONTROLLER)
-            continue;
+    __m512 centerX = _mm512_set1_ps(screen.x * 0.5f);
+    __m512 centerY = _mm512_set1_ps(screen.y * 0.5f);
+
+    for (size_t i = 0; i < cache.entityCount; i += 16) {
+        __m512 x = _mm512_loadu_ps(&cache.headX[i]);
+        __m512 y = _mm512_loadu_ps(&cache.headY[i]);
+        __m512 z = _mm512_loadu_ps(&cache.headZ[i]);
+
+        __m512 w = _mm512_fmadd_ps(x, m12, _mm512_fmadd_ps(y, m13, _mm512_fmadd_ps(z, m14, m15)));
+        __mmask16 frontMask = _mm512_cmp_ps_mask(w, _mm512_set1_ps(0.01f), _CMP_GT_OS);
         
-        auto* pController = reinterpret_cast<CCSPlayerController*>(pEntity);
-        if (!pController || !pController->m_bPawnIsAlive() || pController->m_iTeamNum() == localTeam)
+        if (frontMask == 0) {
+            for(int j=0; j<16; j++) cache.onScreen[i+j] = false;
             continue;
-        
-        auto* pPawn = pController->m_hPawn().Get<C_CSPlayerPawn>();
-        if (!pPawn || !pPawn->IsPlayerPawn())
-            continue;
-
-        auto* pBones = GetCL_Bones();
-        if (!pBones) continue;
-
-        Vector3 headPos = pBones->GetBonePositionByName(pPawn, "head_0");
-        if (headPos.IsZero())
-            continue;
-        
-        bool isVisible = true;
-        if (config.visibilityCheck) {
-            auto* pVisCheck = GetCL_VisibleCheck();
-            isVisible = pVisCheck ? pVisCheck->IsPlayerControllerVisible(pController) : true;
         }
-        
-        ThreadLocalStaging::localCache.AddEntity(headPos, pController->m_iTeamNum(), (float)pPawn->m_iHealth(), isVisible);
+
+        __m512 invW = _mm512_div_ps(_mm512_set1_ps(1.0f), w);
+        __m512 projX = _mm512_fmadd_ps(x, m0, _mm512_fmadd_ps(y, m1, _mm512_fmadd_ps(z, m2, m3)));
+        projX = _mm512_fmadd_ps(_mm512_mul_ps(projX, invW), centerX, centerX);
+        __m512 projY = _mm512_fmadd_ps(x, m4, _mm512_fmadd_ps(y, m5, _mm512_fmadd_ps(z, m6, m7)));
+        projY = _mm512_fnmadd_ps(_mm512_mul_ps(projY, invW), centerY, centerY);
+
+        _mm512_storeu_ps(&cache.screenX[i], projX);
+        _mm512_storeu_ps(&cache.screenY[i], projY);
+        for(int j=0; j<16; j++) cache.onScreen[i+j] = (frontMask & (1 << j)) != 0;
     }
 }
 
-__m512 CAimbot::fast_rsqrt14_ps(__m512 v) {
-    return _mm512_rsqrt14_ps(v);
+void CAimbot::UpdateEntityCache() {
+    auto& localCache = ThreadLocalStaging::localCache;
+    localCache.Clear();
+    auto* pEngine = SDK::Interfaces::EngineToClient();
+    if (!pEngine || !pEngine->IsInGame()) return;
+    auto* pLocalController = GetCL_Players()->GetLocalPlayerController();
+    if (!pLocalController) return;
+    int localTeam = pLocalController->m_iTeamNum();
+    auto* pCache = GetEntityCache();
+    std::scoped_lock lock(pCache->GetLock());
+    const auto& cachedVec = pCache->GetCachedEntity();
+    for (const auto& cachedEntity : *cachedVec) {
+        auto* pController = reinterpret_cast<CCSPlayerController*>(cachedEntity.m_Handle.Get());
+        if (!pController || !pController->m_bPawnIsAlive() || pController->m_iTeamNum() == localTeam) continue;
+        auto* pPawn = pController->m_hPawn().Get<C_CSPlayerPawn>();
+        if (!pPawn) continue;
+        Vector3 headPos = GetCL_Bones()->GetBonePositionByName(pPawn, "head_0");
+        if (headPos.IsZero()) continue;
+        bool isVisible = config.visibilityCheck ? GetCL_VisibleCheck()->IsPlayerControllerVisible(pController) : true;
+        localCache.AddEntity(headPos, pController->m_iTeamNum(), (float)pPawn->m_iHealth(), isVisible);
+    }
 }
 
 void CAimbot::Execute(Vector3& viewAngles, bool& shouldShoot) {
     if (!config.enabled) return;
-
     auto& cache = ThreadLocalStaging::localCache;
     if (cache.entityCount == 0) return;
-
-    auto* pPlayers = GetCL_Players();
-    if (!pPlayers) return;
-
-    auto* pLocalPawn = pPlayers->GetLocalPlayerPawn();
+    BatchWorldToScreen_AVX512(cache, g_ViewMatrix);
+    auto* pLocalPawn = GetCL_Players()->GetLocalPlayerPawn();
     if (!pLocalPawn) return;
-
-    // CORREÇÃO 1: Posição dos Olhos (EyePos) para evitar o 180
-    // Origin + ViewOffset = Onde a câmera realmente está
     Vector3 eyePos = pLocalPawn->m_vOldOrigin() + pLocalPawn->m_vecViewOffset();
-    
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    ImVec2 center(screenSize.x * 0.5f, screenSize.y * 0.5f);
     FireCommand& best = ThreadLocalStaging::pendingCommand;
     best.shouldFire = false;
     best.fov = config.fov;
-
     for (size_t i = 0; i < cache.entityCount; i++) {
-        if (!cache.isActive[i]) continue;
+        if (!cache.isActive[i] || !cache.onScreen[i]) continue;
         if (config.visibilityCheck && !cache.isVisible[i]) continue;
-
-        Vector3 targetPos(cache.headX[i], cache.headY[i], cache.headZ[i]);
-        ImVec2 screenPos;
-        
-        if (Math::WorldToScreen(targetPos, screenPos)) {
-            ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-            if (screenSize.x <= 0 || screenSize.y <= 0) continue;
-
-            ImVec2 center(screenSize.x * 0.5f, screenSize.y * 0.5f);
-            
-            float dx = screenPos.x - center.x;
-            float dy = screenPos.y - center.y;
-            float currentFOV = std::sqrt(dx*dx + dy*dy) * 0.1f;
-
-            if (currentFOV < best.fov) {
-                best.shouldFire = true;
-                best.fov = currentFOV;
-                
-                // Cálculo de ângulo partindo dos OLHOS
-                QAngle qAngle = Math::CalcAngle(eyePos, targetPos);
-                best.targetAngle = Vector3(qAngle.m_x, qAngle.m_y, qAngle.m_z);
-            }
+        float dx = cache.screenX[i] - center.x;
+        float dy = cache.screenY[i] - center.y;
+        float currentFOV = std::sqrt(dx*dx + dy*dy) * 0.1f;
+        if (currentFOV < best.fov) {
+            best.shouldFire = true;
+            best.fov = currentFOV;
+            Vector3 targetPos(cache.headX[i], cache.headY[i], cache.headZ[i]);
+            QAngle qAngle = Math::CalcAngle(eyePos, targetPos);
+            best.targetAngle = Vector3(qAngle.m_x, qAngle.m_y, qAngle.m_z);
         }
     }
-
     if (best.shouldFire) {
-        QAngle finalAngle(best.targetAngle.m_x, best.targetAngle.m_y, best.targetAngle.m_z);
-
-        // RCS: usar o último entry do m_aimPunchCache (punch atual)
+        Vector3 finalAngle = best.targetAngle;
         if (config.recoilControl) {
-            auto& punchCache = pLocalPawn->m_aimPunchCache();
-            if (punchCache.Count() > 0) {
-                QAngle punch = punchCache[punchCache.Count() - 1];
-                finalAngle.m_x -= punch.m_x * 2.0f;
-                finalAngle.m_y -= punch.m_y * 2.0f;
-            }
+            QAngle punch = pLocalPawn->m_aimPunchCache()[0];
+            finalAngle.m_x -= punch.m_x * 2.0f;
+            finalAngle.m_y -= punch.m_y * 2.0f;
         }
-
-        Math::NormalizeAngles(finalAngle);
-        Math::ClampAngles(finalAngle);
-
         if (config.smooth > 1.0f) {
-            QAngle current(viewAngles.m_x, viewAngles.m_y, viewAngles.m_z);
-            QAngle out;
-            Math::SmoothAngles(current, finalAngle, out, config.smooth);
-            viewAngles.m_x = out.m_x;
-            viewAngles.m_y = out.m_y;
-            viewAngles.m_z = out.m_z;
-        } else {
-            viewAngles.m_x = finalAngle.m_x;
-            viewAngles.m_y = finalAngle.m_y;
-            viewAngles.m_z = finalAngle.m_z;
-        }
-
+            Vector3 delta = finalAngle - viewAngles;
+            if (delta.m_x > 180.0f) delta.m_x -= 360.0f;
+            if (delta.m_x < -180.0f) delta.m_x += 360.0f;
+            viewAngles = viewAngles + (delta / config.smooth);
+        } else viewAngles = finalAngle;
         if (best.fov < 1.0f) shouldShoot = true;
     }
 }
 
-bool CAimbot::HasAVX512() {
-    int cpuInfo[4];
-    __cpuidex(cpuInfo, 7, 0);
-    return (cpuInfo[1] & (1 << 16)) != 0;
-}

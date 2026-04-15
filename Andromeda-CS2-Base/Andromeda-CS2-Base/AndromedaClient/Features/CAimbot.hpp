@@ -24,17 +24,28 @@ public:
         float recoilControlX = 2.0f;
     };
 
+    struct alignas(64) FireCommand {
+        bool shouldFire = false;
+        Vector3 targetAngle{0,0,0};
+        float fov = 999.0f;
+    };
+
     struct alignas(64) SoAEntityCache
     {
         static constexpr size_t MAX_ENTITIES = 256;
-        float headX[MAX_ENTITIES];
-        float headY[MAX_ENTITIES];
-        float headZ[MAX_ENTITIES];
-        uint32_t teamId[MAX_ENTITIES];
-        bool isActive[MAX_ENTITIES];
-        bool isVisible[MAX_ENTITIES];
-        float health[MAX_ENTITIES];
+        alignas(64) float headX[MAX_ENTITIES];
+        alignas(64) float headY[MAX_ENTITIES];
+        alignas(64) float headZ[MAX_ENTITIES];
+        alignas(64) float screenX[MAX_ENTITIES];
+        alignas(64) float screenY[MAX_ENTITIES];
+        alignas(64) bool isActive[MAX_ENTITIES];
+        alignas(64) bool isVisible[MAX_ENTITIES];
+        alignas(64) bool onScreen[MAX_ENTITIES];
+        alignas(64) uint32_t teamId[MAX_ENTITIES];
+        alignas(64) float health[MAX_ENTITIES];
+        
         size_t entityCount = 0;
+        
         void Clear() { entityCount = 0; memset(isActive, 0, sizeof(isActive)); }
         void AddEntity(const Vector3& headPos, uint32_t team, float hp, bool visible) {
             if (entityCount >= MAX_ENTITIES) return;
@@ -44,20 +55,28 @@ public:
         }
     };
 
-    struct alignas(64) FireCommand {
-        bool shouldFire = false;
-        Vector3 targetAngle{0,0,0};
-        float fov = 999.0f;
+    class alignas(64) ArenaAllocator {
+    private:
+        static constexpr size_t SIZE = 8 * 1024 * 1024;
+        alignas(64) uint8_t buffer[SIZE];
+        std::atomic<size_t> offset{0};
+    public:
+        void* Alloc(size_t s) {
+            size_t curr = offset.fetch_add((s + 63) & ~63, std::memory_order_relaxed);
+            return (curr + s <= SIZE) ? &buffer[curr] : nullptr;
+        }
+        void Reset() { offset.store(0, std::memory_order_relaxed); }
     };
 
     struct ThreadLocalStaging {
         static thread_local SoAEntityCache localCache;
         static thread_local FireCommand pendingCommand;
-        static thread_local Vector3 lastAppliedPunch;
+        static thread_local ArenaAllocator localArena;
     };
 
 private:
     static inline AimbotConfig config;
+    static void BatchWorldToScreen_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix);
     static __m512 fast_rsqrt14_ps(__m512 v);
 
 public:
@@ -65,8 +84,11 @@ public:
     static void UpdateEntityCache();
     static void Execute(Vector3& viewAngles, bool& shouldShoot);
     static AimbotConfig& GetConfig() { return config; }
-    static int GetOptimalThreadCount() { 
+    
+    static inline int GetOptimalThreadCount() { 
         SYSTEM_INFO sysInfo; GetSystemInfo(&sysInfo); return sysInfo.dwNumberOfProcessors; 
     }
-    static bool HasAVX512();
+    static inline bool HasAVX512() { 
+        int cpuInfo[4]; __cpuidex(cpuInfo, 7, 0); return (cpuInfo[1] & (1 << 16)) != 0; 
+    }
 };
