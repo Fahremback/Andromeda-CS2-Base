@@ -26,6 +26,21 @@ namespace Settings
 		inline auto MenuAlpha = 200;
 		inline auto MenuStyle = 0;
 	}
+	namespace Targeting
+	{
+		inline auto Active = true;
+		inline auto RequireVisibility = true;
+		inline auto MaxFovPixels = 240.f;
+		inline auto WeightFov = 0.7f;
+		inline auto WeightDistance = 0.3f;
+		inline auto Smoothing = 6.f;
+	}
+	namespace Ballistics
+	{
+		inline auto BaseDamage = 100.f;
+		inline auto MinDamageThreshold = 20.f;
+		inline auto MaxPenetrations = 4;
+	}
 	namespace Colors
 	{
 		namespace Visual

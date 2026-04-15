@@ -12,6 +12,9 @@
 #include <AndromedaClient/Fonts/CFontManager.hpp>
 #include <AndromedaClient/Render/CRenderStackSystem.hpp>
 #include <AndromedaClient/Features/CVisual/CVisual.hpp>
+#include <AndromedaClient/Features/Targeting/CTargetingSystem.hpp>
+#include <AndromedaClient/Features/Ballistics/CBallisticsSystem.hpp>
+#include <AndromedaClient/Settings/Settings.hpp>
 
 #include <GameClient/CEntityCache/CEntityCache.hpp>
 
@@ -19,6 +22,15 @@ static CAndromedaClient g_CAndromedaClient{};
 
 auto CAndromedaClient::OnInit() -> void
 {
+	GetBallisticsSystem()->SetMaterialTable(
+	{
+		{ CBallisticsSystem::EMaterial::AIR , 0.f } ,
+		{ CBallisticsSystem::EMaterial::WOOD , 0.8f } ,
+		{ CBallisticsSystem::EMaterial::CONCRETE , 1.3f } ,
+		{ CBallisticsSystem::EMaterial::METAL , 1.8f } ,
+		{ CBallisticsSystem::EMaterial::GLASS , 0.4f }
+	} );
+
 	m_Initialized.store( true , std::memory_order_release );
 }
 
@@ -55,6 +67,7 @@ auto CAndromedaClient::OnRender() -> void
 
 	if ( m_InGame.load( std::memory_order_acquire ) )
 	{
+		GetTargetingSystem()->OnRenderDebug();
 		GetRenderStackSystem()->OnRenderStack();
 	}
 }
@@ -70,8 +83,14 @@ auto CAndromedaClient::OnClientOutput() -> void
 auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
 {
 	m_InGame.store( SDK::Interfaces::EngineToClient()->IsInGame() , std::memory_order_release );
+	GetBallisticsSystem()->SetSettings( {
+		Settings::Ballistics::BaseDamage ,
+		Settings::Ballistics::MinDamageThreshold ,
+		Settings::Ballistics::MaxPenetrations
+	} );
 	GetLinearArena()->Reset();
 	GetVisual()->OnCreateMove();
+	GetTargetingSystem()->OnCreateMove();
 }
 
 auto GetAndromedaClient() -> CAndromedaClient*

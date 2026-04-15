@@ -121,6 +121,12 @@
     <Filter Include="Andromeda-CS2-Base\AndromedaClient\Features">
       <UniqueIdentifier>{eafcd62e-e607-498c-8634-0be5feeec9ae}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Andromeda-CS2-Base\AndromedaClient\Features\Ballistics">
+      <UniqueIdentifier>{5f6d6129-63f5-487e-9d59-91d55d7e2fb6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting">
+      <UniqueIdentifier>{89d18e1a-96c9-4ab8-a904-26df6b3f5d12}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Andromeda-CS2-Base\DllLauncher.cpp">
@@ -452,6 +458,12 @@
     </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.cpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\Ballistics\CBallisticsSystem.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Ballistics</Filter>
+    </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Targeting</Filter>
     </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Bones.cpp">
       <Filter>Andromeda-CS2-Base\GameClient</Filter>
@@ -1090,6 +1102,12 @@
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Features</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\Ballistics\CBallisticsSystem.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Ballistics</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Targeting</Filter>
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\Common\Base64.h">
       <Filter>Andromeda-CS2-Base\Common</Filter>
