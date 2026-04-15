@@ -77,7 +77,6 @@ private:
 	ID3D11Device* m_pDevice = nullptr;
 	ID3D11DeviceContext* m_pDeviceContext = nullptr;
 	ID3D11RenderTargetView* m_pRenderTargetView = nullptr;
-	ID3D11RenderTargetView* m_pMainRenderTarget = nullptr;
 
 private:
 	ImGuiContext* m_pImGuiContext = nullptr;

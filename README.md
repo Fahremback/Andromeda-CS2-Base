@@ -39,6 +39,10 @@
 - `CAndromedaClient` core state uses `std::atomic_bool` with acquire/release semantics for lightweight cross-thread visibility.
 - Render path now snapshots entity cache metadata from a short lock window into arena memory, then renders lock-free from the snapshot.
 
+## DX11 render baseline
+- Backbuffer RTV creation now uses inferred descriptor (`CreateRenderTargetView(..., nullptr, ...)`) for better compatibility with swapchain formats.
+- Present path now backs up and restores OM render targets + viewport state around ImGui rendering to reduce game pipeline interference.
+
 # Links:
 [UnknownCheats Thread](https://www.unknowncheats.me/forum/counter-strike-2-a/722929-andromeda-cs2-internal-base.html)<br>
 [Powered by Vermillion Hack](https://vermillion-hack.ru/)

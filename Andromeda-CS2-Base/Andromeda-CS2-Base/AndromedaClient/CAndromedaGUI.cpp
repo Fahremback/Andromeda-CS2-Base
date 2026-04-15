@@ -1,6 +1,7 @@
 #include "CAndromedaGUI.hpp"
 
 #include <ShlObj_core.h>
+#include <wrl/client.h>
 
 #include <ImGui/imgui_impl_win32.h>
 #include <ImGui/imgui_impl_dx11.h>
@@ -125,6 +126,8 @@ void CAndromedaGUI::OnResizeBuffers( IDXGISwapChain* pSwapChain )
  
 void CAndromedaGUI::OnRender( IDXGISwapChain* pSwapChain )
 {
+	using Microsoft::WRL::ComPtr;
+
 	if ( m_pFreeType_Font && m_pFreeType_Font->PreNewFrame() )
 	{
 		ImGui_ImplDX11_InvalidateDeviceObjects();
@@ -134,28 +137,29 @@ void CAndromedaGUI::OnRender( IDXGISwapChain* pSwapChain )
 	{
 		if ( !m_pRenderTargetView )
 		{
-			ID3D11Texture2D* pBackBuffer = nullptr;
+			ComPtr<ID3D11Texture2D> pBackBuffer;
 
-			pSwapChain->GetBuffer( 0 , IID_PPV_ARGS( &pBackBuffer ) );
-
-			D3D11_RENDER_TARGET_VIEW_DESC RenderTargetDesc;
-
-			memset( &RenderTargetDesc , 0 , sizeof( RenderTargetDesc ) );
-
-			RenderTargetDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			RenderTargetDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
-
-			if ( pBackBuffer )
+			if ( SUCCEEDED( pSwapChain->GetBuffer( 0 , IID_PPV_ARGS( &pBackBuffer ) ) ) && pBackBuffer )
 			{
-				m_pDevice->CreateRenderTargetView( pBackBuffer , &RenderTargetDesc , &m_pRenderTargetView );
-				pBackBuffer->Release();
+				// Let D3D infer correct RTV format/dimension from backbuffer.
+				m_pDevice->CreateRenderTargetView( pBackBuffer.Get() , nullptr , &m_pRenderTargetView );
 			}
 		}
 
+		if ( !m_pRenderTargetView )
+			return;
+
 		ImGui::SetCurrentContext( m_pImGuiContext );
 
-		m_pDeviceContext->OMGetRenderTargets( 1 , &m_pMainRenderTarget , 0 );
-		m_pDeviceContext->OMSetRenderTargets( 1 , &m_pRenderTargetView , 0 );
+		ComPtr<ID3D11RenderTargetView> pPrevRenderTarget;
+		ComPtr<ID3D11DepthStencilView> pPrevDepthStencilView;
+		m_pDeviceContext->OMGetRenderTargets( 1 , pPrevRenderTarget.GetAddressOf() , pPrevDepthStencilView.GetAddressOf() );
+
+		D3D11_VIEWPORT PrevViewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE]{};
+		UINT ViewportCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+		m_pDeviceContext->RSGetViewports( &ViewportCount , PrevViewports );
+
+		m_pDeviceContext->OMSetRenderTargets( 1 , &m_pRenderTargetView , nullptr );
 
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();
@@ -169,7 +173,10 @@ void CAndromedaGUI::OnRender( IDXGISwapChain* pSwapChain )
 
 		ImGui_ImplDX11_RenderDrawData( ImGui::GetDrawData() );
 
-		m_pDeviceContext->OMSetRenderTargets( 1 , &m_pMainRenderTarget , 0 );
+		m_pDeviceContext->OMSetRenderTargets( 1 , pPrevRenderTarget.GetAddressOf() , pPrevDepthStencilView.Get() );
+
+		if ( ViewportCount > 0 )
+			m_pDeviceContext->RSSetViewports( ViewportCount , PrevViewports );
 	}
 }
 
