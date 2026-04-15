@@ -175,14 +175,14 @@ void CPhysicsAligner::ResolvePhaseBypassReachability(SoAEntityCache& cache, cons
     raycastResults.Reset();
 
     const size_t jobs = cache.entityCount;
-    const uint32_t workerCount = std::min<uint32_t>(std::max(1, GetOptimalThreadCount()), kMaxWorkers);
+    const uint32_t workerCount = (std::min<uint32_t>)((std::max)(1, GetOptimalThreadCount()), kMaxWorkers);
     const size_t chunkSize = (jobs + workerCount - 1) / workerCount;
     std::vector<std::future<void>> workers;
     workers.reserve(workerCount);
 
     for (uint32_t worker = 0; worker < workerCount; ++worker) {
         const size_t begin = worker * chunkSize;
-        const size_t end = std::min(jobs, begin + chunkSize);
+        const size_t end = (std::min)(jobs, begin + chunkSize);
         if (begin >= end)
             continue;
 
