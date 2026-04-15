@@ -149,6 +149,8 @@
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\Ballistics\CBallisticsSystem.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Performance\LatencyPipeline.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Performance\StageProfiler.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.cpp" />
@@ -268,6 +270,9 @@
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\Ballistics\CBallisticsSystem.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\LatencyPipeline.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\SPSCQueue.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\StageProfiler.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\GUI\CAndromedaMenu.hpp" />

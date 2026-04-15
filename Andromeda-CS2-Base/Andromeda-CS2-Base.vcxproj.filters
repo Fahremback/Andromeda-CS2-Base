@@ -127,6 +127,9 @@
     <Filter Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting">
       <UniqueIdentifier>{89d18e1a-96c9-4ab8-a904-26df6b3f5d12}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Andromeda-CS2-Base\AndromedaClient\Performance">
+      <UniqueIdentifier>{fa8ef084-6cf9-47dc-8a34-94f6173cb466}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Andromeda-CS2-Base\DllLauncher.cpp">
@@ -464,6 +467,12 @@
     </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.cpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Targeting</Filter>
+    </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Performance\LatencyPipeline.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Performance</Filter>
+    </ClCompile>
+    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Performance\StageProfiler.cpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Performance</Filter>
     </ClCompile>
     <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Bones.cpp">
       <Filter>Andromeda-CS2-Base\GameClient</Filter>
@@ -1108,6 +1117,15 @@
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\Targeting\CTargetingSystem.hpp">
       <Filter>Andromeda-CS2-Base\AndromedaClient\Features\Targeting</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\LatencyPipeline.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Performance</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\SPSCQueue.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Performance</Filter>
+    </ClInclude>
+    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Performance\StageProfiler.hpp">
+      <Filter>Andromeda-CS2-Base\AndromedaClient\Performance</Filter>
     </ClInclude>
     <ClInclude Include="Andromeda-CS2-Base\Common\Base64.h">
       <Filter>Andromeda-CS2-Base\Common</Filter>

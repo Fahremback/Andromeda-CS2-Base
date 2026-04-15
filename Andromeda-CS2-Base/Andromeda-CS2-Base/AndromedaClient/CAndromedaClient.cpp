@@ -14,14 +14,21 @@
 #include <AndromedaClient/Features/CVisual/CVisual.hpp>
 #include <AndromedaClient/Features/Targeting/CTargetingSystem.hpp>
 #include <AndromedaClient/Features/Ballistics/CBallisticsSystem.hpp>
+#include <AndromedaClient/Performance/LatencyPipeline.hpp>
 #include <AndromedaClient/Settings/Settings.hpp>
 
 #include <GameClient/CEntityCache/CEntityCache.hpp>
+#include <chrono>
 
 static CAndromedaClient g_CAndromedaClient{};
 
 auto CAndromedaClient::OnInit() -> void
 {
+	GetLatencyPipeline()->Start( []( const CLatencyPipeline::InputEvent_t& Event )
+	{
+		( void )Event;
+	} );
+
 	GetBallisticsSystem()->SetMaterialTable(
 	{
 		{ CBallisticsSystem::EMaterial::AIR , 0.f } ,
@@ -67,8 +74,17 @@ auto CAndromedaClient::OnRender() -> void
 
 	if ( m_InGame.load( std::memory_order_acquire ) )
 	{
+		GetLatencyPipeline()->BeginStage( CStageProfiler::EStage::RENDER_SUBMIT );
 		GetTargetingSystem()->OnRenderDebug();
 		GetRenderStackSystem()->OnRenderStack();
+		GetLatencyPipeline()->EndStage( CStageProfiler::EStage::RENDER_SUBMIT );
+
+		const auto SimStats = GetLatencyPipeline()->GetProfiler().Snapshot( CStageProfiler::EStage::SIMULATION );
+		const auto RenderStats = GetLatencyPipeline()->GetProfiler().Snapshot( CStageProfiler::EStage::RENDER_SUBMIT );
+
+		GetFontManager()->m_VerdanaFont.DrawString( 8 , 56 , ImColor( 180 , 255 , 180 ) , FW1_LEFT ,
+			"SIM p99=%.1fus p999=%.1fus | RENDER p99=%.1fus p999=%.1fus | SIMD=%s" ,
+			SimStats.P99Us , SimStats.P999Us , RenderStats.P99Us , RenderStats.P999Us , GetLatencyPipeline()->GetBestSIMDPathName() );
 	}
 }
 
@@ -82,6 +98,10 @@ auto CAndromedaClient::OnClientOutput() -> void
 
 auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
 {
+	static uint64_t TickId = 0;
+	GetLatencyPipeline()->EnqueueInput( { ++TickId , 0 , 0 , static_cast<uint64_t>( std::chrono::high_resolution_clock::now().time_since_epoch().count() ) } );
+	GetLatencyPipeline()->BeginStage( CStageProfiler::EStage::SIMULATION );
+
 	m_InGame.store( SDK::Interfaces::EngineToClient()->IsInGame() , std::memory_order_release );
 	GetBallisticsSystem()->SetSettings( {
 		Settings::Ballistics::BaseDamage ,
@@ -91,6 +111,7 @@ auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -
 	GetLinearArena()->Reset();
 	GetVisual()->OnCreateMove();
 	GetTargetingSystem()->OnCreateMove();
+	GetLatencyPipeline()->EndStage( CStageProfiler::EStage::SIMULATION );
 }
 
 auto GetAndromedaClient() -> CAndromedaClient*
