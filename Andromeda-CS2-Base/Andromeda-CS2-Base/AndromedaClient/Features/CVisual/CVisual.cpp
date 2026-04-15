@@ -392,8 +392,7 @@ auto CVisual::DrawBoneESP( C_CSPlayerPawn* pC_CSPlayerPawn , const bool bVisible
 		"leg_upper_r", "leg_lower_r", "ankle_r"
 	};
 
-	static const std::array<BoneConnection_t , 19> BoneConnections =
-	{
+	static const std::array<BoneConnection_t , 19> BoneConnections = {{
 		// Head to spine chain
 		{ BONE_HEAD , BONE_NECK },
 		{ BONE_NECK , BONE_SPINE_1 },
@@ -421,8 +420,8 @@ auto CVisual::DrawBoneESP( C_CSPlayerPawn* pC_CSPlayerPawn , const bool bVisible
 		// Right leg
 		{ BONE_PELVIS , BONE_LEG_UPPER_R },
 		{ BONE_LEG_UPPER_R , BONE_LEG_LOWER_R },
-		{ BONE_LEG_LOWER_R , BONE_ANKLE_R },
-	};
+		{ BONE_LEG_LOWER_R , BONE_ANKLE_R } 
+	}};
 
 	std::array<Vector3 , BONE_COUNT> BonePositions{};
 	if ( !GetCL_Bones()->GetBonePositionsByName( pC_CSPlayerPawn , RequiredBones.data() , RequiredBones.size() , BonePositions.data() ) )

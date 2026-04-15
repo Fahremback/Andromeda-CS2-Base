@@ -27,31 +27,38 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 			RenderCheckBox( XorStr( "Enable Aimbot" ) , XorStr( "##Aimbot.Enabled" ) , aimbotConfig.enabled );
 			RenderCheckBox( XorStr( "Trigger Bot" ) , XorStr( "##Aimbot.TriggerBot" ) , aimbotConfig.triggerBot );
 			RenderCheckBox( XorStr( "Auto Wall" ) , XorStr( "##Aimbot.AutoWall" ) , aimbotConfig.autoWall );
-			RenderCheckBox( XorStr( "Visibility Check" ) , XorStr( "##Aimbot.VisibilityCheck" ) , aimbotConfig.visibilityCheck );
 			RenderCheckBox( XorStr( "Recoil Control" ) , XorStr( "##Aimbot.RecoilControl" ) , aimbotConfig.recoilControl );
 			
 			ImGui::Separator();
 			
 			RenderSliderInt( XorStr( "Bone Target" ) , XorStr( "##Aimbot.BoneTarget" ) , aimbotConfig.boneTarget , 0 , 19 );
 			RenderSliderInt( XorStr( "Min Damage" ) , XorStr( "##Aimbot.MinDamage" ) , aimbotConfig.minDamage , 1 , 100 );
-			RenderSliderInt( XorStr( "Smooth" ) , XorStr( "##Aimbot.Smooth" ) , *reinterpret_cast<int*>(&aimbotConfig.smooth) , 0 , 100 );
-			RenderSliderInt( XorStr( "FOV" ) , XorStr( "##Aimbot.FOV" ) , *reinterpret_cast<int*>(&aimbotConfig.fov) , 0 , 180 );
+			
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text( XorStr("Smooth") ); ImGui::SameLine();
+            ImGui::SliderFloat( XorStr("##Aimbot.Smooth"), &aimbotConfig.smooth, 1.0f, 100.0f );
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text( XorStr("FOV") ); ImGui::SameLine();
+            ImGui::SliderFloat( XorStr("##Aimbot.FOV"), &aimbotConfig.fov, 0.0f, 180.0f );
 			
 			if ( aimbotConfig.recoilControl )
 			{
 				ImGui::Separator();
-				RenderSliderInt( XorStr( "Recoil Control X" ) , XorStr( "##Aimbot.RCX" ) , *reinterpret_cast<int*>(&aimbotConfig.recoilControlX) , -100 , 100 );
-				RenderSliderInt( XorStr( "Recoil Control Y" ) , XorStr( "##Aimbot.RCY" ) , *reinterpret_cast<int*>(&aimbotConfig.recoilControlY) , -100 , 100 );
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text( XorStr("Recoil X") ); ImGui::SameLine();
+                ImGui::SliderFloat( XorStr("##Aimbot.RCX"), &aimbotConfig.recoilControlX, -10.0f, 10.0f );
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text( XorStr("Recoil Y") ); ImGui::SameLine();
+                ImGui::SliderFloat( XorStr("##Aimbot.RCY"), &aimbotConfig.recoilControlY, -10.0f, 10.0f );
 			}
 			
 			ImGui::Separator();
 			ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), "Performance Technologies:" );
-			ImGui::BulletText( "SIMD AVX-512 Batch Processing (8 alvos/ciclo)" );
-			ImGui::BulletText( "SoA Entity Cache (L1 Cache otimizado)" );
-			ImGui::BulletText( "rsqrt14 Fast Normalize (70%% menos ciclos)" );
-			ImGui::BulletText( "Arena Allocator (Zero syscall overhead)" );
-			ImGui::BulletText( "MPSC Ring-Buffer (Zero contencao)" );
-			ImGui::BulletText( "FMA Matrix Projection (Hardware precision)" );
+			ImGui::BulletText( "SIMD AVX-512 Batch Processing" );
+			ImGui::BulletText( "SoA Entity Cache (L1 Aligned)" );
+			ImGui::BulletText( "rsqrt14 Fast Normalize" );
 		}
 
 		// ============================================
@@ -90,11 +97,6 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 				RenderCheckBox( XorStr( "  Glow Enemy" ) , XorStr( "##Visual.GlowEnemy" ) , Settings::Visual::GlowEnemy );
 				ImGui::Unindent();
 			}
-			
-			ImGui::Separator();
-			ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), "Performance Technologies:" );
-			ImGui::BulletText( "FMA Matrix Projection (Hardware precision)" );
-			ImGui::BulletText( "SIMD Batch W2S (Todos ossos simultaneamente)" );
 		}
 
 		// ============================================
@@ -137,7 +139,6 @@ auto CAndromedaMenu::OnRenderMenu() -> void
 			ImGui::TextColored( ImVec4( 1.0f, 0.5f, 0.0f, 1.0f ), "System Info:" );
 			ImGui::BulletText( "AVX-512 Support: %s", CAimbot::HasAVX512() ? "YES" : "NO" );
 			ImGui::BulletText( "Thread Count: %d", CAimbot::GetOptimalThreadCount() );
-			ImGui::BulletText( "Arena Memory: 8MB Aligned (64B)" );
 		}
 	}
 

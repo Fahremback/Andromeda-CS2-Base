@@ -23,32 +23,32 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{0011461c-0e5f-401c-ac58-23719d1ef845}</ProjectGuid>
     <RootNamespace>AndromedaCS2Base</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -137,7 +137,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CAimbot.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.cpp" />
@@ -160,7 +161,8 @@
     <ClCompile Include="Andromeda-CS2-Base\CS2\CBasePattern.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\CHook_Loader.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\CSDK_Loader.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\CS2\Hook\Hook_AntiTamper.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\\CS2\\Hook\\Hook_AntiTamper.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\\CS2\\Hook\\Hook_IsLoadoutAllowed.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\Hook\Hook_CreateMove.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\Hook\Hook_CreateSwapChain.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\CS2\Hook\Hook_FireEventClientSide.cpp" />
@@ -252,7 +254,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaGUI.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CAimbot.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.hpp" />
@@ -339,7 +342,8 @@
     <ClInclude Include="Andromeda-CS2-Base\CS2\CBasePattern.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\CS2\CHook_Loader.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\CS2\CSDK_Loader.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\CS2\Hook\Hook_AntiTamper.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\\CS2\\Hook\\Hook_AntiTamper.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\\CS2\\Hook\\Hook_IsLoadoutAllowed.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\CS2\Hook\Hook_CreateMove.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\CS2\Hook\Hook_CreateSwapChain.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\CS2\Hook\Hook_FireEventClientSide.hpp" />

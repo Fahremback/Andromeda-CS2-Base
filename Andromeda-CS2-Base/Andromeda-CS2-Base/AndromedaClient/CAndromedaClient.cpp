@@ -71,18 +71,18 @@ auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -
 	// Executar Aimbot ultra-otimizado
 	// Acessar ângulos através da estrutura protobuf do CS2
 	Vector3 viewAngles(
-		pUserCmd->cmd.view_angles().x(),
-		pUserCmd->cmd.view_angles().y(),
-		pUserCmd->cmd.view_angles().z()
+		pUserCmd->cmd.base().viewangles().x(),
+		pUserCmd->cmd.base().viewangles().y(),
+		pUserCmd->cmd.base().viewangles().z()
 	);
 	bool shouldShoot = false;
 	
 	CAimbot::Execute(viewAngles, shouldShoot);
 	
 	// Aplicar ângulos calculados de volta ao protobuf
-	pUserCmd->cmd.mutable_view_angles()->set_x(viewAngles.m_x);
-	pUserCmd->cmd.mutable_view_angles()->set_y(viewAngles.m_y);
-	pUserCmd->cmd.mutable_view_angles()->set_z(viewAngles.m_z);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_x(viewAngles.m_x);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_y(viewAngles.m_y);
+	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_z(viewAngles.m_z);
 	
 	// Disparar se necessário - usar button_states
 	if (shouldShoot)
