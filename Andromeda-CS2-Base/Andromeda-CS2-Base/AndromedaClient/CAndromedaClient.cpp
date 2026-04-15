@@ -10,6 +10,7 @@
 #include <AndromedaClient/Fonts/CFontManager.hpp>
 #include <AndromedaClient/Render/CRenderStackSystem.hpp>
 #include <AndromedaClient/Features/CVisual/CVisual.hpp>
+#include <AndromedaClient/Features/CAimbot.hpp>
 
 #include <GameClient/CEntityCache/CEntityCache.hpp>
 
@@ -17,7 +18,8 @@ static CAndromedaClient g_CAndromedaClient{};
 
 auto CAndromedaClient::OnInit() -> void
 {
-
+	// Inicializar Aimbot ultra-otimizado
+	Andromeda::Features::CAimbot::Initialize();
 }
 
 auto CAndromedaClient::OnFrameStageNotify( int FrameStage ) -> void
@@ -65,6 +67,23 @@ auto CAndromedaClient::OnClientOutput() -> void
 auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
 {
 	GetVisual()->OnCreateMove();
+	
+	// Executar Aimbot ultra-otimizado
+	Vector3 viewAngles(pUserCmd->viewangles.x, pUserCmd->viewangles.y, pUserCmd->viewangles.z);
+	bool shouldShoot = false;
+	
+	Andromeda::Features::CAimbot::Execute(viewAngles, shouldShoot);
+	
+	// Aplicar ângulos calculados
+	pUserCmd->viewangles.x = viewAngles.x;
+	pUserCmd->viewangles.y = viewAngles.y;
+	pUserCmd->viewangles.z = viewAngles.z;
+	
+	// Disparar se necessário
+	if (shouldShoot)
+	{
+		pUserCmd->buttons |= IN_ATTACK;
+	}
 }
 
 auto GetAndromedaClient() -> CAndromedaClient*
