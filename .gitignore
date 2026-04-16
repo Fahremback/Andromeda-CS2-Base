@@ -1,5 +1,7 @@
 ```
 # Build artifacts
+build/
+dist/
 *.o
 *.obj
 *.exe
@@ -18,25 +20,33 @@ __pycache__/
 target/
 .gradle/
 
-# IDE/Editor files
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# Logs and temp files
+*.log
 *.tmp
 
-# Logs
-*.log
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env.*
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
 
-# System files
-.DS_Store
-Thumbs.db
-.env
-.env.local
-*.env.*
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
 ```
