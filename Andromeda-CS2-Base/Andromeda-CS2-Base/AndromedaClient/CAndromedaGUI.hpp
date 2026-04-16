@@ -70,6 +70,7 @@ public:
 public:
 	auto GetDevice() -> ID3D11Device* { return m_pDevice; }
 	auto GetDeviceContext() -> ID3D11DeviceContext* { return m_pDeviceContext; }
+	auto GetImGuiContext() -> ImGuiContext* { return m_pImGuiContext; }
 
 public:
 	auto ClearRenderTargetView() -> void;

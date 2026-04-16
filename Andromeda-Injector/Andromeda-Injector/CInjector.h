@@ -18,6 +18,7 @@ public:
 private:
 	auto GetPrivileges() -> bool;
 	auto GetProcessIdByName( const char* szName ) -> DWORD;
+	auto ResolveDllPath() -> bool;
 
 private:
 	bool __forceinline FileExist( const char* szFileName )

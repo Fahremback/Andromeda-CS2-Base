@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Andromeda-CS2-Base", "Andro
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Andromeda-Injector", "Andromeda-Injector\Andromeda-Injector.vcxproj", "{CCCB11FE-9B54-44BF-8C77-29DBB3B83B74}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Andromeda-CS2-Logic", "Andromeda-CS2-Logic\Andromeda-CS2-Logic.vcxproj", "{11223344-5566-7788-99AA-BBCCDDEEFF00}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

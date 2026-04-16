@@ -2,16 +2,21 @@
 #include "../../Common/Common.hpp"
 #include "../../CS2/SDK/Math/Vector3.hpp"
 #include "../../CS2/SDK/Math/Matrix.hpp"
+#include "CPhysicsCriticalPhases.hpp"
 #include <cstdint>
 #include <atomic>
 #include <array>
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <intrin.h>
 
 class CPhysicsAligner
 {
 public:
+    static inline CPhysicsCriticalPhases::SensorMatrixState ioState;
+
     struct alignas(64) BallSimulationParams
     {
         bool enabled = true;
@@ -21,16 +26,39 @@ public:
         float fov = 10.0f;
         int anchorPoint = 6;
         int minDamage = 1;
+        bool backtrackEnabled = false;
         bool occlusionTest = true;
         bool vibrationDamping = true;
         float vibrationDampingY = 2.0f;
         float vibrationDampingX = 2.0f;
+        uint32_t processIntervalMs = 8;
+        uint32_t visibilityCacheMs = 50;
     };
 
     struct alignas(64) FireCommand {
         bool shouldFire = false;
         Vector3 targetAngle{0,0,0};
         float fov = 999.0f;
+    };
+
+    // Resultado pré-computado consumido pelo CreateMove (double-buffer)
+    struct alignas(64) AimbotResult {
+        bool ready = false;
+        bool shouldFire = false;
+        Vector3 finalAngle{0, 0, 0};
+        bool triggerInteraction = false;
+    };
+
+    struct PerfSnapshot {
+        uint32_t lastProcessUs = 0;
+        uint32_t averageProcessUs = 0;
+        uint32_t maxProcessUs = 0;
+        uint32_t lastEntityCount = 0;
+        uint32_t submittedRequests = 0;
+        uint32_t throttledRequests = 0;
+        uint32_t busyRequests = 0;
+        uint32_t effectiveIntervalMs = 0;
+        bool hotTracking = false;
     };
 
     struct alignas(64) SoAEntityCache
@@ -144,13 +172,41 @@ private:
     static inline std::atomic<uint32_t> workerGeneration{ 0 };
     static inline std::atomic<uint32_t> workerCompleted{ 0 };
     static inline std::atomic<uint32_t> workerCount{ 0 };
+    static inline std::mutex workerMutex;
+    static inline std::condition_variable workerCv;
     static inline JobContext activeJob;
+
+    // Async processing thread (separate from worker job threads)
+    static inline std::thread asyncProcessThread;
+    static inline std::atomic<bool> asyncThreadStop{ false };
+    static inline std::atomic<bool> asyncProcessRequested{ false };
+    static inline std::atomic<bool> asyncProcessInFlight{ false };
+    static inline std::atomic<bool> asyncProcessComplete{ false };
+    static inline std::atomic<uint64_t> lastAsyncRequestUs{ 0 };
+    static inline std::atomic<uint64_t> lastTargetTrackUs{ 0 };
+    static inline std::mutex asyncRequestMutex;
+    static inline std::condition_variable asyncRequestCv;
+    static inline AimbotResult latestResult{};
+    static inline std::mutex asyncResultMutex;
+    static inline std::atomic<uint32_t> perfLastProcessUs{ 0 };
+    static inline std::atomic<uint32_t> perfAverageProcessUs{ 0 };
+    static inline std::atomic<uint32_t> perfMaxProcessUs{ 0 };
+    static inline std::atomic<uint32_t> perfLastEntityCount{ 0 };
+    static inline std::atomic<uint32_t> perfSubmittedRequests{ 0 };
+    static inline std::atomic<uint32_t> perfThrottledRequests{ 0 };
+    static inline std::atomic<uint32_t> perfBusyRequests{ 0 };
+    static inline std::atomic<uint32_t> perfEffectiveIntervalMs{ 0 };
+    static inline std::atomic<bool> perfHotTracking{ false };
+    static void AsyncProcessThreadMain();
+    static void StartAsyncThread();
+
     static void ProjectCoordinatesToGrid_AVX512(SoAEntityCache& cache, const VMatrix& viewMatrix, const Vector3& sensorPos);
     static __m512 fast_rsqrt14_ps(__m512 v);
     static Vector3 NormalizeVectorFast(const Vector3& v);
     static void InitializeJobSystem();
     static void ShutdownJobSystem();
     static void DispatchParallelJob(JobType type);
+    static void EnsureWorkersSpawned();
     static void JobWorkerMain(uint32_t workerIndex);
     static void ProcessReachabilityWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context);
     static void ProcessSnapshotWorker(uint32_t workerIndex, uint32_t totalWorkers, const JobContext& context);
@@ -165,6 +221,11 @@ public:
     static void ScanObjectCluster();
     static void SolveConstraint(Vector3& opticalOrientation, bool& triggerInteraction);
     static BallSimulationParams& GetConfig() { return config; }
+
+    // Sistema async: request processamento no frame, consumir resultado no CreateMove
+    static void RequestAsyncProcess();
+    static bool ConsumeResult(AimbotResult& out);
+    static PerfSnapshot GetPerfSnapshot();
     
     static inline int GetOptimalThreadCount() { 
         SYSTEM_INFO sysInfo; GetSystemInfo(&sysInfo); return sysInfo.dwNumberOfProcessors; 

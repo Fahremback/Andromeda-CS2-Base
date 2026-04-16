@@ -71,8 +71,10 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetName>Andromeda-Bridge-v2</TargetName>
     <IncludePath>$(MSBuildProjectDirectory)\Andromeda-CS2-Base\;$(MSBuildProjectDirectory)\Andromeda-CS2-Base\Common\Include\;$(IncludePath)</IncludePath>
     <GenerateManifest>false</GenerateManifest>
+    <OutDir>$(MSBuildProjectDirectory)\..\x64\Release\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -138,16 +140,7 @@
   <ItemGroup>
     <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsCriticalPhases.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsSimulationMocks.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsAligner.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\GUI\CAndromedaMenu.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Render\CRender.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Render\CRenderStackSystem.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\AndromedaClient\Settings\CSettingsJson.cpp" />
+    <ClCompile Include="Andromeda-CS2-Base\Common\CTelemetry.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\Common\CrashLog.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\Common\DevLog.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\Common\Helpers\ModuleLoaderHelper.cpp" />
@@ -245,32 +238,11 @@
     <ClCompile Include="Andromeda-CS2-Base\CS2\SDK\Types\CHandle.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\DllLauncher.cpp" />
     <ClCompile Include="Andromeda-CS2-Base\DllMain.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CEntityCache\CEntityCache.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Bones.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Bypass.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_ItemDefinition.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Players.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Trace.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_VisibleCheck.cpp" />
-    <ClCompile Include="Andromeda-CS2-Base\GameClient\CL_Weapons.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\CAndromedaClient.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\CAndromedaGUI.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CAimbot.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsAligner.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsCriticalPhases.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\\AndromedaClient\\Features\\CPhysicsSimulationMocks.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Features\CVisual\CVisual.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFont.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Fonts\CFontManager.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\GUI\CAndromedaMenu.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Render\CRender.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Render\CRenderStackSystem.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Settings\CSettingsJson.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\AndromedaClient\Settings\Settings.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Base64.h" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Common.hpp" />
+    <ClInclude Include="Andromeda-CS2-Base\Common\CTelemetry.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\CrashLog.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\DevLog.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\Common\Helpers\ModuleLoaderHelper.hpp" />
@@ -465,14 +437,6 @@
     <ClInclude Include="Andromeda-CS2-Base\CS2\SDK\Update\VMT_Index.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\DllLauncher.hpp" />
     <ClInclude Include="Andromeda-CS2-Base\DllMain.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CEntityCache\CEntityCache.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_Bones.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_Bypass.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_ItemDefinition.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_Players.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_Trace.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_VisibleCheck.hpp" />
-    <ClInclude Include="Andromeda-CS2-Base\GameClient\CL_Weapons.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -12,6 +12,7 @@ auto __forceinline PrintMessage( const char* fmt , ... ) -> void
 	va_end( args );
 
 	printf( "%s" , buff );
+	fflush( stdout );
 };
 
 int main( int argm , char** argv )

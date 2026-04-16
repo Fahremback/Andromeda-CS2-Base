@@ -31,11 +31,15 @@ auto CDllLauncher::OnDllMain( LPVOID lpReserved , HINSTANCE hInstace ) -> void
 	{
 		char szDllDir[MAX_PATH];
 
-		GetModuleFileNameA( hInstace , szDllDir , MAX_PATH );
-
-		m_DllDir = szDllDir;
-		m_DllDir = m_DllDir.substr( 0 , m_DllDir.find_last_of( '\\' ) );
-		m_DllDir += '\\';
+		if (GetModuleFileNameA( hInstace , szDllDir , MAX_PATH ))
+		{
+			m_DllDir = szDllDir;
+			size_t lastSlash = m_DllDir.find_last_of( "\\/" );
+			if (lastSlash != std::string::npos)
+			{
+				m_DllDir = m_DllDir.substr( 0 , lastSlash + 1 );
+			}
+		}
 	}
 
 	m_hDllImage = hInstace;
@@ -106,7 +110,7 @@ auto WINAPI CDllLauncher::StartCheatTheard( LPVOID lpThreadParameter ) -> DWORD
 		return 0;
 	}
 
-	GetAndromedaClient()->OnInit();
+	GetAndromedaClient()->OnInit(nullptr);
 
 	return 0;
 }

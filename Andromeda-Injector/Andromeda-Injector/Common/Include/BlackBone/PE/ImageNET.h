@@ -21,7 +21,7 @@ struct IMetaDataDispenserEx;
 struct IMetaDataImport;
 struct IMetaDataAssemblyImport;
 #endif
-#include <atlbase.h>
+// #include <atlbase.h>
 #pragma warning(pop)
 
 namespace blackbone

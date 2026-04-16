@@ -10,23 +10,32 @@ public:
 private:
 	enum class EMenuTab : int
 	{
-		CollisionOptimizer = 0 ,
+		Aimbot = 0 ,
+		Autowall ,
+		Backtrack ,
+		AntiAim ,
+		Exploits ,
+		Resolver ,
 		Visuals ,
 		Colors ,
-		Menu
+		Settings
 	};
 
-	EMenuTab m_CurrentTab{ EMenuTab::CollisionOptimizer };
+	EMenuTab m_CurrentTab{ EMenuTab::Aimbot };
 
 	auto RenderTopBar() -> void;
 	auto RenderSidebar() -> void;
 	auto RenderContent() -> void;
-	auto RenderCollisionOptimizerTab() -> void;
+	auto RenderAimbotTab() -> void;
+	auto RenderAutowallTab() -> void;
+	auto RenderBacktrackTab() -> void;
+	auto RenderAntiAimTab() -> void;
+	auto RenderExploitsTab() -> void;
+	auto RenderResolverTab() -> void;
 	auto RenderVisualsTab() -> void;
 	auto RenderColorsTab() -> void;
-	auto RenderMenuTab() -> void;
+	auto RenderSettingsTab() -> void;
 	auto RenderSectionHeader( const char* szTitle , const char* szSubtitle ) -> void;
-	auto RenderTechCard( const char* szTitle , const char* szDescription , const char* szImpact ) -> void;
 	auto RenderNavButton( const char* szLabel , EMenuTab Tab ) -> bool;
 
 	auto RenderCheckBox( const char* szTitle , const char* szStrID , bool& SettingsItem ) -> bool;

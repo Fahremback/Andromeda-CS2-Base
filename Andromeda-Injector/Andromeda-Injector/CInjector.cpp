@@ -1,20 +1,58 @@
 #include "CInjector.h"
 
-#include <BlackBone/Process/Process.h>
+#include <array>
+#include <string>
+
+namespace
+{
+	constexpr const char* kDllName = "Andromeda-Bridge.dll";
+
+	auto AppendPath( const char* basePath , const char* relativePath ) -> std::string
+	{
+		std::string fullPath = basePath ? basePath : "";
+		if ( !fullPath.empty() && fullPath.back() != '\\' && fullPath.back() != '/' )
+			fullPath += '\\';
+		fullPath += relativePath;
+		return fullPath;
+	}
+}
 
 auto CInjector::Init() -> bool
 {
-	GetModuleFileNameA( 0 , szDllFilePath , MAX_PATH );
 	GetCurrentDirectoryA( MAX_PATH , szCurrentDir );
 
-	int len = lstrlenA( szDllFilePath );
-
-	szDllFilePath[len - 1] = 'l';
-	szDllFilePath[len - 2] = 'l';
-	szDllFilePath[len - 3] = 'd';
-
-	if ( GetPrivileges() && FileExist( szDllFilePath ) )
+	if ( GetPrivileges() && ResolveDllPath() )
 		return true;
+
+	return false;
+}
+
+auto CInjector::ResolveDllPath() -> bool
+{
+	const std::array<std::string , 6> candidatePaths = {
+		AppendPath( szCurrentDir , kDllName ) ,
+		AppendPath( szCurrentDir , "x64\\Release\\Andromeda-Bridge.dll" ) ,
+		AppendPath( szCurrentDir , "Andromeda-CS2-Base\\x64\\Release\\Andromeda-Bridge.dll" ) ,
+		AppendPath( szCurrentDir , "..\\Andromeda-CS2-Base\\x64\\Release\\Andromeda-Bridge.dll" ) ,
+		AppendPath( szCurrentDir , "..\\x64\\Release\\Andromeda-Bridge.dll" ) ,
+		AppendPath( szCurrentDir , "..\\..\\Andromeda-CS2-Base\\x64\\Release\\Andromeda-Bridge.dll" )
+	};
+
+	for ( const auto& candidate : candidatePaths )
+	{
+		if ( !FileExist( candidate.c_str() ) )
+			continue;
+
+		strncpy_s( szDllFilePath , candidate.c_str() , _TRUNCATE );
+		DEV_LOG( "[info] DLL encontrada: %s\n" , szDllFilePath );
+		return true;
+	}
+
+	DEV_LOG( "[error] DLL nao encontrada. Caminhos testados:\n" );
+	for ( const auto& candidate : candidatePaths )
+	{
+		DEV_LOG( "  - %s\n" , candidate.c_str() );
+	}
 
 	return false;
 }
@@ -50,7 +88,7 @@ auto CInjector::GetProcessIdByName( const char* szProcName )->DWORD
 	if ( hSnapshot != INVALID_HANDLE_VALUE )
 	{
 		PROCESSENTRY32 ProcEntry32 = { 0 };
-		ProcEntry32.dwSize = sizeof( MODULEENTRY32 );
+		ProcEntry32.dwSize = sizeof( PROCESSENTRY32 );
 
 		if ( Process32First( hSnapshot , &ProcEntry32 ) )
 		{
@@ -77,11 +115,23 @@ auto CInjector::InjectManualMap( const char* szProcessName ) -> bool
 
 	DEV_LOG( "[info] Wait for start %s\n" , szProcessName );
 
+	uint32_t waitIterations = 0;
 	while ( !PID )
 	{
 		PID = GetProcessIdByName( szProcessName );
+		if ( PID )
+			break;
+
+		if ( ++waitIterations >= 200 )
+		{
+			DEV_LOG( "[-] inject code: timeout waiting process\n" );
+			return false;
+		}
+
 		Sleep( 100 );
 	}
+
+	DEV_LOG( "[info] Found process %s pid=%lu\n" , szProcessName , PID );
 
 	m_hProcess = OpenProcess( PROCESS_ALL_ACCESS , FALSE , PID );
 
@@ -156,19 +206,59 @@ auto CInjector::InjectManualMap( const char* szProcessName ) -> bool
 
 	// Inject To Process
 	{
-		blackbone::Process CS2Process;
-		CS2Process.Attach( m_hProcess );
+		const size_t dllPathLength = lstrlenA( szDllFilePath ) + 1;
+		LPVOID pRemoteDllPath = VirtualAllocEx( m_hProcess , nullptr , dllPathLength , MEM_RESERVE | MEM_COMMIT , PAGE_READWRITE );
 
-		blackbone::CustomArgs_t Args;
-
-		Args.push_back( &LoaderData , sizeof( DllLoaderData_t ) );
-
-		auto pImage = CS2Process.mmap().MapImage( m_DllFileSize , m_pDllFile , false , blackbone::WipeHeader , nullptr , nullptr , &Args );
-
-		if ( pImage )
-			Result = true;
+		if ( !pRemoteDllPath )
+		{
+			DEV_LOG( "[-] inject code: #7\n" );
+		}
+		else if ( !WriteProcessMemory( m_hProcess , pRemoteDllPath , szDllFilePath , dllPathLength , nullptr ) )
+		{
+			DEV_LOG( "[-] inject code: #8\n" );
+			VirtualFreeEx( m_hProcess , pRemoteDllPath , 0 , MEM_RELEASE );
+		}
 		else
-			DEV_LOG( "[-] inject: %ws\n" , blackbone::Utils::GetErrorDescription( pImage.status ).c_str() );
+		{
+			const HMODULE hKernel32 = GetModuleHandleA( "kernel32.dll" );
+			auto pLoadLibraryA = reinterpret_cast<LPTHREAD_START_ROUTINE>( GetProcAddress( hKernel32 , "LoadLibraryA" ) );
+
+			if ( !pLoadLibraryA )
+			{
+				DEV_LOG( "[-] inject code: #9\n" );
+				VirtualFreeEx( m_hProcess , pRemoteDllPath , 0 , MEM_RELEASE );
+			}
+			else
+			{
+				HANDLE hRemoteThread = CreateRemoteThread( m_hProcess , nullptr , 0 , pLoadLibraryA , pRemoteDllPath , 0 , nullptr );
+				if ( !hRemoteThread )
+				{
+					DEV_LOG( "[-] inject code: #10\n" );
+					VirtualFreeEx( m_hProcess , pRemoteDllPath , 0 , MEM_RELEASE );
+				}
+				else
+				{
+					const DWORD waitResult = WaitForSingleObject( hRemoteThread , 10000 );
+
+					DWORD remoteExitCode = 0;
+					if ( waitResult == WAIT_OBJECT_0 && GetExitCodeThread( hRemoteThread , &remoteExitCode ) && remoteExitCode != 0 )
+					{
+						Result = true;
+					}
+					else if ( waitResult == WAIT_TIMEOUT )
+					{
+						DEV_LOG( "[-] inject code: #11 timeout\n" );
+					}
+					else
+					{
+						DEV_LOG( "[-] inject code: #11 exit=%lu wait=%lu\n" , remoteExitCode , waitResult );
+					}
+
+					CloseHandle( hRemoteThread );
+					VirtualFreeEx( m_hProcess , pRemoteDllPath , 0 , MEM_RELEASE );
+				}
+			}
+		}
 	}
 
 	// Free And Close

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Common/Common.hpp>
+#include <Common/Include/IAndromedaLogic.hpp>
 
 class IVEngineToClient;
 class CInputStackSystem;

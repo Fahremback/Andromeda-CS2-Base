@@ -1,96 +1,181 @@
 #include "CAndromedaClient.hpp"
-
-#include <CS2/SDK/SDK.hpp>
-#include <CS2/SDK/Interface/IEngineToClient.hpp>
-#include <CS2/SDK/Interface/IGameEvent.hpp>
-#include <CS2/SDK/Update/CCSGOInput.hpp>
-
-#include <AndromedaClient/GUI/CAndromedaMenu.hpp>
 #include <AndromedaClient/CAndromedaGUI.hpp>
-#include <AndromedaClient/Fonts/CFontManager.hpp>
-#include <AndromedaClient/Render/CRenderStackSystem.hpp>
-#include <AndromedaClient/Features/CVisual/CVisual.hpp>
-#include <AndromedaClient/Features/CPhysicsAligner.hpp>
-
-#include <GameClient/CEntityCache/CEntityCache.hpp>
+#include <DllLauncher.hpp>
+#include <CS2/SDK/SDK.hpp>
+#include <chrono>
+#include <thread>
+#include <fstream>
 
 static CAndromedaClient g_CAndromedaClient{};
 
-auto CAndromedaClient::OnInit() -> void
+auto CAndromedaClient::OnInit(SharedState* state) -> bool
 {
-	// Inicializar Collision Optimizer de alta performance
-	CPhysicsAligner::Initialize();
+	m_SharedState.interfaceVersion = ANDROMEDA_INTERFACE_VERSION;
+	m_SharedState.imguiContext = GetAndromedaGUI()->GetImGuiContext();
+	m_SharedState.settings = &m_Settings;
+	
+	// SDK Pointers initialization
+	m_SharedState.sdk.engine = SDK::Interfaces::EngineToClient();
+	m_SharedState.sdk.entitySystem = SDK::Interfaces::GameEntitySystem();
+	m_SharedState.sdk.schemaSystem = SDK::Interfaces::SchemaSystem();
+	m_SharedState.sdk.source2Client = SDK::Interfaces::Source2Client();
+	m_SharedState.sdk.localize = SDK::Interfaces::Localize();
+	m_SharedState.sdk.soundOpSystem = SDK::Interfaces::SoundOpSystem();
+	m_SharedState.sdk.baseFileSystem = SDK::Interfaces::BaseFileSystem();
+	m_SharedState.sdk.materialSystem2 = SDK::Interfaces::MaterialSystem2();
+	m_SharedState.sdk.engineCvar = SDK::Interfaces::EngineCvar();
+	m_SharedState.sdk.inputSystem = SDK::Interfaces::InputSystem();
+	m_SharedState.sdk.globalVars = SDK::Pointers::GlobalVarsBase();
+
+	m_LastFileCheckTime = std::chrono::steady_clock::now();
+	ReloadLogic();
+
+	return true;
 }
 
-auto CAndromedaClient::OnFrameStageNotify( int FrameStage ) -> void
+void CAndromedaClient::ReloadLogic()
 {
+	if (m_bIsReloading) return;
+	m_bIsReloading = true;
 
+	std::string logicPath = GetDllDir() + "Andromeda-Logic.dll";
+	
+	if (!std::filesystem::exists(logicPath)) {
+		m_bIsReloading = false;
+		return;
+	}
+
+	// NEW: Improved lock detection. 
+	// We try to rename the source file to itself. If we can't, it's definitely locked.
+	bool isLocked = true;
+	for (int i = 0; i < 10; ++i) {
+		std::error_code ec;
+		std::filesystem::rename(logicPath, logicPath, ec);
+		if (!ec) {
+			isLocked = false;
+			break;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+
+	if (isLocked) {
+		m_bIsReloading = false;
+		return;
+	}
+
+	if (m_pLogic) {
+		m_pLogic->OnDestroy();
+		m_pLogic = nullptr;
+	}
+
+	if (m_hLogicModule) {
+		FreeLibrary(m_hLogicModule);
+		m_hLogicModule = nullptr;
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+
+	m_ReloadGeneration++;
+	// Use a unique name for every single reload to avoid destination locks
+	std::string swapPath = GetDllDir() + "Andromeda-Logic-Swap-" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000) + ".dll";
+
+	try {
+		std::filesystem::copy_file(logicPath, swapPath, std::filesystem::copy_options::overwrite_existing);
+		
+		m_hLogicModule = LoadLibraryA(swapPath.c_str());
+		if (m_hLogicModule) {
+			auto pGetLogicInstance = (GetLogicInstanceFn)GetProcAddress(m_hLogicModule, "GetLogicInstance");
+			if (pGetLogicInstance) {
+				m_pLogic = pGetLogicInstance();
+				if (m_pLogic && m_pLogic->OnInit(&m_SharedState)) {
+					m_LastLoadTime = std::filesystem::last_write_time(logicPath);
+					m_CurrentSwapPath = swapPath;
+					DEV_LOG("[bridge] Logic hot-reloaded successfully. Gen: %d\n", (int)m_ReloadGeneration);
+				}
+			}
+		}
+		
+		// Cleanup old swap files
+		for (auto& p : std::filesystem::directory_iterator(GetDllDir())) {
+			if (p.path().extension() == ".dll" && p.path().filename().string().find("Andromeda-Logic-Swap-") != std::string::npos) {
+				if (p.path().string() != swapPath) {
+					std::error_code ec;
+					std::filesystem::remove(p.path(), ec);
+				}
+			}
+		}
+	}
+	catch (...) {}
+
+	m_bIsReloading = false;
 }
 
-auto CAndromedaClient::OnFireEventClientSide( IGameEvent* pGameEvent ) -> void
+auto CAndromedaClient::OnFrameStageNotify(int FrameStage) -> void
 {
-
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnFrameStageNotify(FrameStage);
 }
 
-auto CAndromedaClient::OnAddEntity( CEntityInstance* pInst , CHandle handle ) -> void
+auto CAndromedaClient::OnFireEventClientSide(IGameEvent* pGameEvent) -> void
 {
-	GetEntityCache()->OnAddEntity( pInst , handle );
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnFireEventClientSide(pGameEvent);
 }
 
-auto CAndromedaClient::OnRemoveEntity( CEntityInstance* pInst , CHandle handle ) -> void
+auto CAndromedaClient::OnAddEntity(CEntityInstance* pInst, CHandle handle) -> void
 {
-	GetEntityCache()->OnRemoveEntity( pInst , handle );
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnAddEntity(pInst, handle);
+}
+
+auto CAndromedaClient::OnRemoveEntity(CEntityInstance* pInst, CHandle handle) -> void
+{
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnRemoveEntity(pInst, handle);
 }
 
 auto CAndromedaClient::OnRender() -> void
 {
-	if ( GetAndromedaGUI()->IsVisible() )
-		GetAndromedaMenu()->OnRenderMenu();
-
-	GetFontManager()->FirstInitFonts();
-	GetFontManager()->m_VerdanaFont.DrawString( 1 , 1 , ImColor( 255 , 255 , 0 ) , FW1_LEFT , XorStr( CHEAT_NAME ) );
-
-	if ( SDK::Interfaces::EngineToClient()->IsInGame() )
-	{
-		GetRenderStackSystem()->OnRenderStack();
+	auto now = std::chrono::steady_clock::now();
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(now - m_LastFileCheckTime).count() > 1000) {
+		m_LastFileCheckTime = now;
+		
+		std::string logicPath = GetDllDir() + "Andromeda-Logic.dll";
+		std::error_code ec;
+		if (std::filesystem::exists(logicPath, ec)) {
+			auto lastWrite = std::filesystem::last_write_time(logicPath, ec);
+			if (!ec && lastWrite != m_LastLoadTime) {
+				ReloadLogic();
+			}
+		}
 	}
+
+	if (m_bIsReloading || !m_pLogic) return;
+	
+	m_SharedState.imguiContext = GetAndromedaGUI()->GetImGuiContext();
+	m_pLogic->OnRender();
 }
 
 auto CAndromedaClient::OnClientOutput() -> void
 {
-	if ( SDK::Interfaces::EngineToClient()->IsInGame() )
-	{
-		GetVisual()->OnClientOutput();
-	}
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnClientOutput();
 }
 
-auto CAndromedaClient::OnCreateMove( CCSGOInput* pInput , CUserCmd* pUserCmd ) -> void
+auto CAndromedaClient::OnCreateMove(CCSGOInput* pInput, CUserCmd* pUserCmd) -> void
 {
-	GetVisual()->OnCreateMove();
-	
-	// Executar Collision Optimizer de alta performance
-	// Primeiro, atualizar o cache de entidades
-	CPhysicsAligner::ScanObjectCluster();
-	
-	// Acessar ângulos através da estrutura protobuf do CS2
-	Vector3 opticalOrientation(
-		pUserCmd->cmd.base().viewangles().x(),
-		pUserCmd->cmd.base().viewangles().y(),
-		pUserCmd->cmd.base().viewangles().z()
-	);
-	bool triggerInteraction = false;
-	
-	CPhysicsAligner::SolveConstraint(opticalOrientation, triggerInteraction);
-	
-	// Aplicar ângulos calculados de volta ao protobuf
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_x(opticalOrientation.m_x);
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_y(opticalOrientation.m_y);
-	pUserCmd->cmd.mutable_base()->mutable_viewangles()->set_z(opticalOrientation.m_z);
-	
-	// Disparar se necessário - usar button_states
-	if (triggerInteraction)
-	{
-		pUserCmd->button_states.buttonstate1 |= IN_ATTACK;
+	if (m_bIsReloading || !m_pLogic) return;
+	m_pLogic->OnCreateMove(pInput, pUserCmd);
+}
+
+auto CAndromedaClient::OnDestroy() -> void
+{
+	if (m_pLogic) {
+		m_pLogic->OnDestroy();
+		m_pLogic = nullptr;
+	}
+	if (m_hLogicModule) {
+		FreeLibrary(m_hLogicModule);
+		m_hLogicModule = nullptr;
 	}
 }
 

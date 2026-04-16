@@ -14,7 +14,20 @@
       "Bash(find C:UsersPauloDesktopCS2Andromeda-CS2-Base-masterAndromeda-CS2-BaseAndromeda-CS2-Base -name *.hpp -exec grep -l 'class C_CSPlayerPawn' {})",
       "Bash(2)",
       "Bash(do echo:*)",
-      "Read(//c/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/**)"
+      "Read(//c/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master/**)",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild.exe\" \"Andromeda-CS2-Base.sln\" -maxCpuCount -nologo -v:minimal -p:Configuration=Release)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe\" \"Andromeda-CS2-Base.sln\" -maxCpuCount -nologo -v:minimal -p:Configuration=Release)",
+      "Bash(find /c/Users/Paulo/Desktop/CS2/Andromeda-CS2-Base-master -type f -name *.hpp -o -name *.cpp)",
+      "Bash(cmake --build build --config Release)",
+      "Bash(cmd.exe /c 'where MSBuild' 2>&1)",
+      "Bash(powershell -Command 'Start-Process \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" -ArgumentList \"C:\\\\Users\\\\Paulo\\\\Desktop\\\\CS2\\\\Andromeda-CS2-Base-master\\\\Andromeda-CS2-Base\\\\Andromeda-CS2-Base.vcxproj\", \"/p:Configuration=Release\", \"/p:Platform=x64\", \"/nologo\", \"/v:minimal\" -Wait -NoNewWindow -RedirectStandardOutput \"C:\\\\Users\\\\Paulo\\\\Desktop\\\\build_output.txt\" -PassThru | Select-Object ExitCode' 2>&1)",
+      "Bash(cmd.exe /c 'if exist \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\" \\(echo \"VS2022 exists\"\\) else \\(echo \"VS2022 missing\"\\)' 2>&1)",
+      "Bash(vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild**BinMSBuild.exe)",
+      "Bash(cmd.exe /c \"where vswhere 2>nul && vswhere -latest -property installationPath\")",
+      "Bash(cmd.exe /c \"C:\\\\Windows\\\\System32\\\\where.exe vswhere 2>nul && C:\\\\ProgramData\\\\Microsoft\\\\VisualStudio\\\\Packages\\\\Microsoft.VisualStudio.Setup.Tools*,*\\\\vswhere.exe -latest -property installationPath\")",
+      "Bash(/c/Windows/System32/cmd.exe /c 'call \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat\" && echo SUCCESS' 2>&1)",
+      "Bash(cmd.exe /c 'C:\\\\Users\\\\Paulo\\\\Desktop\\\\build.bat')",
+      "Bash(powershell -NoProfile -Command '$p = Start-Process cmd.exe -ArgumentList \"/c\", \"call `\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvars64.bat`\" >nul && `\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe`\" `\"C:\\\\Users\\\\Paulo\\\\Desktop\\\\CS2\\\\Andromeda-CS2-Base-master\\\\Andromeda-CS2-Base\\\\Andromeda-CS2-Base.vcxproj`\" /p:Configuration=Release /p:Platform=x64 /nologo /v:minimal > C:\\\\Users\\\\Paulo\\\\Desktop\\\\build_out.txt 2>&1\" -PassThru -Wait -NoNewWindow; Get-Content C:\\\\Users\\\\Paulo\\\\Desktop\\\\build_out.txt -ErrorAction SilentlyContinue | Select-Object -Last 30' 2>&1)"
     ]
   }
 }
