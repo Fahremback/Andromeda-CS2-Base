@@ -1,62 +1,16 @@
-# =========================
-# Build outputs / binaries
-# =========================
-bin/
-obj/
+```
+# Build artifacts
 build/
 dist/
-out/
-Debug/
-Release/
-x64/
-x86/
-[Bb]uild/
-[Oo]ut/
-
 *.o
 *.obj
-*.a
-*.lib
-*.exp
-*.dll
 *.exe
+*.dll
 *.so
-*.dylib
-*.pdb
-*.ilk
-*.idb
-*.ipdb
-*.iobj
-*.pch
-*.sdf
-*.opensdf
-*.db
-*.VC.db
-*.VC.opendb
+*.a
+*.out
 
-# MSBuild / Visual Studio incremental files
-*.tlog
-*.lastbuildstate
-*.unsuccessfulbuild
-*.recipe
-*.vcxproj.FileListAbsolute.txt
-
-# =========================
-# IDE and user files
-# =========================
-.vs/
-.vscode/
-.idea/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-*.VC.VC.opendb
-ipch/
-
-# =========================
-# Language/package caches
-# =========================
+# Dependencies
 node_modules/
 venv/
 .venv/
@@ -66,28 +20,33 @@ __pycache__/
 target/
 .gradle/
 
-# =========================
-# Logs and temporary files
-# =========================
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temp files
 *.log
 *.tmp
-*.temp
-*.swp
-*.bak
-*.orig
 
-# =========================
-# Environment files
-# =========================
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment
 .env
 .env.local
 *.env.*
 
-# =========================
-# OS / tooling noise
-# =========================
-.DS_Store
-Thumbs.db
+# Coverage
 coverage/
 htmlcov/
 .coverage
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+```

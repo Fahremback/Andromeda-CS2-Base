@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <fstream>
+#include <AndromedaClient/CModuleManager.hpp>
 
 static CAndromedaClient g_CAndromedaClient{};
 
@@ -26,6 +27,29 @@ auto CAndromedaClient::OnInit(SharedState* state) -> bool
 	m_SharedState.sdk.engineCvar = SDK::Interfaces::EngineCvar();
 	m_SharedState.sdk.inputSystem = SDK::Interfaces::InputSystem();
 	m_SharedState.sdk.globalVars = SDK::Pointers::GlobalVarsBase();
+
+	// Store pointer for module manager
+	m_SharedStatePtr = &m_SharedState;
+	
+	// Initialize Module Manager
+	m_pModuleManager = GetModuleManager();
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->Initialize();
+		
+		// Auto-scan for modules in the modules directory
+		std::string modulesDir = GetDllDir() + "modules";
+		auto foundModules = m_pModuleManager->ScanForModules(modulesDir);
+		
+		// Load all found modules
+		for (const auto& modulePath : foundModules)
+		{
+			DEV_LOG("[bridge] Auto-loading module: %s\n", modulePath.c_str());
+			m_pModuleManager->LoadModule(modulePath);
+		}
+		
+		DEV_LOG("[bridge] Module Manager initialized with %zu modules\n", m_pModuleManager->GetLoadedModules().size());
+	}
 
 	m_LastFileCheckTime = std::chrono::steady_clock::now();
 	ReloadLogic();
@@ -111,24 +135,52 @@ void CAndromedaClient::ReloadLogic()
 
 auto CAndromedaClient::OnFrameStageNotify(int FrameStage) -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnFrameStageNotify(FrameStage);
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnFrameStageNotify(FrameStage);
 }
 
 auto CAndromedaClient::OnFireEventClientSide(IGameEvent* pGameEvent) -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnFireEventClientSide(pGameEvent);
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnFireEventClientSide(pGameEvent);
 }
 
 auto CAndromedaClient::OnAddEntity(CEntityInstance* pInst, CHandle handle) -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnAddEntity(pInst, handle);
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnAddEntity(pInst, handle);
 }
 
 auto CAndromedaClient::OnRemoveEntity(CEntityInstance* pInst, CHandle handle) -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnRemoveEntity(pInst, handle);
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnRemoveEntity(pInst, handle);
 }
@@ -149,6 +201,13 @@ auto CAndromedaClient::OnRender() -> void
 		}
 	}
 
+	// Module Manager render
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnRender();
+	}
+	
+	// Legacy Logic render
 	if (m_bIsReloading || !m_pLogic) return;
 	
 	m_SharedState.imguiContext = GetAndromedaGUI()->GetImGuiContext();
@@ -157,18 +216,40 @@ auto CAndromedaClient::OnRender() -> void
 
 auto CAndromedaClient::OnClientOutput() -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnClientOutput();
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnClientOutput();
 }
 
 auto CAndromedaClient::OnCreateMove(CCSGOInput* pInput, CUserCmd* pUserCmd) -> void
 {
+	// Forward to Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->OnCreateMove(pInput, pUserCmd);
+	}
+	
+	// Legacy Logic support
 	if (m_bIsReloading || !m_pLogic) return;
 	m_pLogic->OnCreateMove(pInput, pUserCmd);
 }
 
 auto CAndromedaClient::OnDestroy() -> void
 {
+	// Shutdown Module Manager first
+	if (m_pModuleManager)
+	{
+		m_pModuleManager->Shutdown();
+		m_pModuleManager = nullptr;
+	}
+	
+	// Legacy Logic cleanup
 	if (m_pLogic) {
 		m_pLogic->OnDestroy();
 		m_pLogic = nullptr;
